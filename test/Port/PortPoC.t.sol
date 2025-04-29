@@ -7,11 +7,14 @@ import { DeployPortProofOfConceptScript } from "script/DeployPortProofOfConcept.
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
+import { AtomicSolverV3, AtomicQueue } from "src/atomic-queue/AtomicSolverV3.sol";
 
 /// @dev forge test --match-contract PortPoCTest
 contract PortPoCTest is Test, DeployPortProofOfConceptScript {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
+
+    address public alice = makeAddr("alice");
 
     function setUp() external {
         uint256 forkId = vm.createFork(vm.envString("MAINNET_RPC_URL"));
@@ -31,5 +34,137 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         uint256 value;
         boringVault.manage(target, data, value);
         vm.stopPrank();
+    }
+
+    /* 
+    First 
+    1. Deposit - LP
+    2. Borrow - Borrower / strategy executor 
+    3. Withdrawal request - LP
+    4. NAV setting - Borrower / strategy executor 
+    5. Repay - Borrower / strategy executor 
+    Cross check accruals (NAV vs Withdraw) 
+    */
+    function test_FirstFlow() external {
+        uint256 amount = 100e18;
+        deal(address(WETH), address(alice), amount);
+
+        /// 1. Deposit - LP
+        vm.startPrank(alice);
+        WETH.approve(address(boringVault), amount);
+        uint256 aliceShares = teller.deposit(WETH, amount, 0);
+        vm.stopPrank();
+
+        /// 2. Borrow - Borrower / strategy executor
+        vm.startPrank(hexTrust);
+        address target = address(WETH);
+        bytes memory data = abi.encodeCall(ERC20.transfer, (hexTrust, amount));
+        uint256 value;
+        boringVault.manage(target, data, value);
+        vm.stopPrank();
+
+        /// 3. Withdrawal request - LP
+        vm.startPrank(alice);
+        AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
+            deadline: uint64(block.timestamp + 1 days),
+            atomicPrice: 1e18,
+            offerAmount: uint96(aliceShares),
+            inSolve: false
+        });
+        boringVault.approve(address(atomicQueue), aliceShares);
+        atomicQueue.updateAtomicRequest(boringVault, WETH, req);
+        vm.stopPrank();
+
+        /// 4. NAV setting - Borrower / strategy executor
+        vm.prank(hexTrust);
+        WETH.transfer(address(boringVault), amount);
+
+        /// 5. Repay - Borrower / strategy executor
+        vm.startPrank(hexTrust);
+        WETH.approve(address(atomicSolverV3), amount);
+        address[] memory users = new address[](1);
+        users[0] = alice;
+        atomicSolverV3.redeemSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max, teller);
+        vm.stopPrank();
+
+        /// Cross check accruals (NAV vs Withdraw)
+        assertEq(WETH.balanceOf(address(boringVault)), 0);
+        assertEq(WETH.balanceOf(alice), amount);
+    }
+
+    /*
+    Second 
+    6. Deposit - LP
+    7. Borrow - Borrower / strategy executor 
+    8. Nav Setting - Borrower / strategy executor 
+    9. Withdrawal request in diff currency - LP
+    10. Repay - Borrower / strategy executor 
+    11. Cross check accruals (NAV vs Withdraw)
+    */
+    function test_SecondFlow() external {
+        uint256 amount = 100e18;
+        deal(address(WETH), address(alice), amount);
+
+        /// 6. Deposit - LP
+        vm.startPrank(alice);
+        WETH.approve(address(boringVault), amount);
+        uint256 aliceShares = teller.deposit(WETH, amount, 0);
+        vm.stopPrank();
+
+        /// 7. Borrow - Borrower / strategy executor
+        vm.startPrank(hexTrust);
+        address target = address(WETH);
+        bytes memory data = abi.encodeCall(ERC20.transfer, (hexTrust, amount));
+        uint256 value;
+        boringVault.manage(target, data, value);
+        vm.stopPrank();
+
+        /// 8. Nav Setting - Borrower / strategy executor
+        vm.prank(hexTrust);
+        WETH.transfer(address(boringVault), amount);
+
+        /// 9. Withdrawal request in diff currency - LP
+        /// Wrong request
+        vm.startPrank(alice);
+        AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
+            deadline: uint64(block.timestamp + 1 days),
+            atomicPrice: 1e18,
+            offerAmount: uint96(aliceShares),
+            inSolve: false
+        });
+        boringVault.approve(address(atomicQueue), aliceShares);
+        atomicQueue.updateAtomicRequest(boringVault, ERC20(address(69)), req);
+        vm.stopPrank();
+
+        /// Should fail
+        vm.startPrank(hexTrust);
+        WETH.approve(address(atomicSolverV3), amount);
+        address[] memory users = new address[](1);
+        users[0] = alice;
+        vm.expectRevert();
+        atomicSolverV3.redeemSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max, teller);
+        vm.stopPrank();
+
+        /// 10. Repay - Borrower / strategy executor
+        /// Right request
+        vm.startPrank(alice);
+        req = AtomicQueue.AtomicRequest({
+            deadline: uint64(block.timestamp + 1 days),
+            atomicPrice: 1e18,
+            offerAmount: uint96(aliceShares),
+            inSolve: false
+        });
+        boringVault.approve(address(atomicQueue), aliceShares);
+        atomicQueue.updateAtomicRequest(boringVault, ERC20(WETH), req);
+        vm.stopPrank();
+
+        /// Should suceed
+        vm.startPrank(hexTrust);
+        atomicSolverV3.redeemSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max, teller);
+        vm.stopPrank();
+
+        /// Cross check accruals (NAV vs Withdraw)
+        assertEq(WETH.balanceOf(address(boringVault)), 0);
+        assertEq(WETH.balanceOf(alice), amount);
     }
 }
