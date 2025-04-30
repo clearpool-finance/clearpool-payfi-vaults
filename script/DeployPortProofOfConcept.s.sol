@@ -94,6 +94,9 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
         rolesAuthority.setRoleCapability(
             SOLVER_ROLE, address(teller), TellerWithMultiAssetSupport.bulkWithdraw.selector, true
         );
+        rolesAuthority.setRoleCapability(
+            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.p2pSolve.selector, true
+        );
         rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV3.finishSolve.selector, true);
         rolesAuthority.setRoleCapability(
             CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.redeemSolve.selector, true
