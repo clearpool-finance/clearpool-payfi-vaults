@@ -42,7 +42,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
     2. Borrow - Borrower / strategy executor 
     3. Withdrawal request - LP
     4. NAV setting - Borrower / strategy executor 
-    5. Repay - Borrower / strategy executor 
+    5. Repay - Borrower / strategy executor - P2P path
     Cross check accruals (NAV vs Withdraw) 
     */
     function test_FirstFlow() external {
@@ -76,15 +76,12 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         vm.stopPrank();
 
         /// 4. NAV setting - Borrower / strategy executor
-        vm.prank(hexTrust);
-        WETH.transfer(address(boringVault), amount);
-
-        /// 5. Repay - Borrower / strategy executor
+        /// 5. Repay - Borrower / strategy executor - P2P path
         vm.startPrank(hexTrust);
         WETH.approve(address(atomicSolverV3), amount);
         address[] memory users = new address[](1);
         users[0] = alice;
-        atomicSolverV3.redeemSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max, teller);
+        atomicSolverV3.p2pSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max);
         vm.stopPrank();
 
         /// Cross check accruals (NAV vs Withdraw)
@@ -96,9 +93,9 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
     Second 
     6. Deposit - LP
     7. Borrow - Borrower / strategy executor 
-    8. Nav Setting - Borrower / strategy executor 
-    9. Withdrawal request in diff currency - LP
-    10. Repay - Borrower / strategy executor 
+    8. Nav Setting - Borrower / strategy executor
+    9. Withdrawal request in diff currency LP - REDEEM path
+    10. Repay - Borrower / strategy executor - REDEEM path
     11. Cross check accruals (NAV vs Withdraw)
     */
     function test_SecondFlow() external {
@@ -123,7 +120,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         vm.prank(hexTrust);
         WETH.transfer(address(boringVault), amount);
 
-        /// 9. Withdrawal request in diff currency - LP
+        /// 9. Withdrawal request in diff currency LP - REDEEM path
         /// Wrong request
         vm.startPrank(alice);
         AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
@@ -145,7 +142,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         atomicSolverV3.redeemSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max, teller);
         vm.stopPrank();
 
-        /// 10. Repay - Borrower / strategy executor
+        /// 10. Repay - Borrower / strategy executor - REDEEM path
         /// Right request
         vm.startPrank(alice);
         req = AtomicQueue.AtomicRequest({
