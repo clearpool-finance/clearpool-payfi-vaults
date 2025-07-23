@@ -22,6 +22,10 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
 
         USDX = WETH;
         run();
+
+        vm.prank(hexTrust);
+        teller.setDepositCap(type(uint256).max);
+        vm.stopPrank();
     }
 
     function test_CanArbitrarilyRemoveFunds() external {
