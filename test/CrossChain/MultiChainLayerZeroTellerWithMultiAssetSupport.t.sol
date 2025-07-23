@@ -20,6 +20,7 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupportTest is MultiChainBaseTes
     function setUp() public virtual override(MultiChainBaseTest, TestHelperOz5) {
         MultiChainBaseTest.setUp();
         TestHelperOz5.setUp();
+        MultiChainLayerZeroTellerWithMultiAssetSupport(sourceTellerAddr).setDepositCap(type(uint256).max);
     }
 
     function testBridgingShares(uint256 sharesToBridge) external virtual {

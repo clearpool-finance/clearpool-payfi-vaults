@@ -36,6 +36,7 @@ contract MultiChainHyperlaneTellerWithMultiAssetSupportTest is MultiChainBaseTes
 
         sourceTeller = MultiChainHyperlaneTellerWithMultiAssetSupport(sourceTellerAddr);
         destinationTeller = MultiChainHyperlaneTellerWithMultiAssetSupport(destinationTellerAddr);
+        sourceTeller.setDepositCap(type(uint256).max);
     }
 
     function testBridgingShares(uint256 sharesToBridge) external virtual {

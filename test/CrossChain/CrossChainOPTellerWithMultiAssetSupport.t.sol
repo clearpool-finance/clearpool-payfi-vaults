@@ -50,6 +50,7 @@ contract CrossChainOPTellerWithMultiAssetSupportTest is CrossChainBaseTest {
         CrossChainBaseTest.setUp();
         CrossChainOPTellerWithMultiAssetSupport(sourceTellerAddr).setGasBounds(0, uint32(CHAIN_MESSAGE_GAS_LIMIT));
         CrossChainOPTellerWithMultiAssetSupport(destinationTellerAddr).setGasBounds(0, uint32(CHAIN_MESSAGE_GAS_LIMIT));
+        CrossChainOPTellerWithMultiAssetSupport(sourceTellerAddr).setDepositCap(type(uint256).max);
     }
 
     function testBridgingShares(uint256 sharesToBridge) public virtual {

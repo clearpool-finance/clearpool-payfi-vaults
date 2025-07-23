@@ -112,6 +112,7 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
         manager.setAuthority(rolesAuthority);
         accountant.setAuthority(rolesAuthority);
         teller.setAuthority(rolesAuthority);
+        teller.setDepositCap(type(uint256).max);
         vm.stopPrank();
 
         // Setup roles authority.

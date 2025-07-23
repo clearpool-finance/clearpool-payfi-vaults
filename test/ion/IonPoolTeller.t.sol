@@ -24,6 +24,7 @@ contract IonPoolTellerTest is IonPoolSharedSetup {
         vm.startPrank(TELLER_OWNER);
         teller.addAsset(WETH);
         teller.addAsset(WSTETH);
+        teller.setDepositCap(type(uint256).max);
         vm.stopPrank();
 
         // Setup accountant
