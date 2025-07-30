@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity 0.8.21;
+pragma solidity 0.8.22;
 
 import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { BoringVault } from "src/base/BoringVault.sol";
@@ -34,7 +34,6 @@ contract ConfigureAtomicRoles is BaseScript {
 
         // Run configuration
         _configure();
-
         return address(0);
     }
 
