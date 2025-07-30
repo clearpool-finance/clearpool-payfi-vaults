@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity 0.8.22;
 
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { WETH } from "@solmate/tokens/WETH.sol";
@@ -10,10 +10,10 @@ import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { BeforeTransferHook } from "src/interfaces/BeforeTransferHook.sol";
 import { Auth, Authority } from "@solmate/auth/Auth.sol";
 import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
+import { IKeyring } from "src/interfaces/IKeyring.sol";
 
 /**
  * @title TellerWithMultiAssetSupport
- * @custom:security-contact security@molecularlabs.io
  */
 contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuard {
     using FixedPointMathLib for uint256;
@@ -69,6 +69,40 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      */
     mapping(address => uint256) public shareUnlockTime;
 
+    /**
+     * @notice Access control mode for the vault
+     */
+    enum AccessControlMode {
+        DISABLED,
+        KEYRING_KYC,
+        MANUAL_WHITELIST
+    }
+
+    /**
+     * @notice Current access control mode
+     */
+    AccessControlMode public accessControlMode;
+
+    /**
+     * @notice Keyring contract interface
+     */
+    IKeyring public keyringContract;
+
+    /**
+     * @notice Keyring policy ID to check against
+     */
+    uint256 public keyringPolicyId;
+
+    /**
+     * @notice Manual whitelist for addresses when in MANUAL_WHITELIST mode
+     */
+    mapping(address => bool) public manualWhitelist;
+
+    /**
+     * @notice Whitelist for smart contracts (AMMs, protocols) that work in both modes
+     */
+    mapping(address => bool) public contractWhitelist;
+
     //============================== ERRORS ===============================
 
     error TellerWithMultiAssetSupport__ShareLockPeriodTooLong();
@@ -82,6 +116,8 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     error TellerWithMultiAssetSupport__PermitFailedAndAllowanceTooLow();
     error TellerWithMultiAssetSupport__ZeroShares();
     error TellerWithMultiAssetSupport__Paused();
+    error TellerWithMultiAssetSupport__KeyringCredentialInvalid();
+    error TellerWithMultiAssetSupport__NotWhitelisted();
 
     //============================== EVENTS ===============================
 
@@ -102,6 +138,10 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     event BulkWithdraw(address indexed asset, uint256 shareAmount);
     event DepositRefunded(uint256 indexed nonce, bytes32 depositHash, address indexed user);
     event DepositCapUpdated(uint256 oldCap, uint256 newCap);
+    event AccessControlModeUpdated(AccessControlMode oldMode, AccessControlMode newMode);
+    event KeyringConfigUpdated(address keyringContract, uint256 policyId);
+    event ManualWhitelistUpdated(address indexed account, bool status);
+    event ContractWhitelistUpdated(address indexed account, bool status);
 
     //============================== IMMUTABLES ===============================
 
@@ -119,6 +159,26 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      * @notice One share of the BoringVault.
      */
     uint256 internal immutable ONE_SHARE;
+
+    /**
+     * @notice Check if an address has access to mint/redeem
+     * @param entity The address to check
+     */
+    modifier checkAccess(address entity) {
+        if (accessControlMode == AccessControlMode.KEYRING_KYC) {
+            if (!contractWhitelist[entity] && address(keyringContract) != address(0)) {
+                if (!keyringContract.checkCredential(keyringPolicyId, entity)) {
+                    revert TellerWithMultiAssetSupport__KeyringCredentialInvalid();
+                }
+            }
+        } else if (accessControlMode == AccessControlMode.MANUAL_WHITELIST) {
+            if (!manualWhitelist[entity] && !contractWhitelist[entity]) {
+                revert TellerWithMultiAssetSupport__NotWhitelisted();
+            }
+        }
+        // If DISABLED, no checks performed
+        _;
+    }
 
     constructor(address _owner, address _vault, address _accountant) Auth(_owner, Authority(address(0))) {
         vault = BoringVault(payable(_vault));
@@ -188,6 +248,47 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         shareLockPeriod = _shareLockPeriod;
     }
 
+    /**
+     * @notice Sets the access control mode
+     * @dev Callable by OWNER_ROLE
+     */
+    function setAccessControlMode(AccessControlMode _mode) external requiresAuth {
+        emit AccessControlModeUpdated(accessControlMode, _mode);
+        accessControlMode = _mode;
+    }
+
+    /**
+     * @notice Configure Keyring integration
+     * @dev Callable by OWNER_ROLE
+     */
+    function setKeyringConfig(address _keyringContract, uint256 _policyId) external requiresAuth {
+        keyringContract = IKeyring(_keyringContract);
+        keyringPolicyId = _policyId;
+        emit KeyringConfigUpdated(_keyringContract, _policyId);
+    }
+
+    /**
+     * @notice Update manual whitelist
+     * @dev Callable by OWNER_ROLE
+     */
+    function updateManualWhitelist(address[] calldata addresses, bool status) external requiresAuth {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            manualWhitelist[addresses[i]] = status;
+            emit ManualWhitelistUpdated(addresses[i], status);
+        }
+    }
+
+    /**
+     * @notice Update contract whitelist (for AMMs, protocols)
+     * @dev Callable by OWNER_ROLE
+     */
+    function updateContractWhitelist(address[] calldata addresses, bool status) external requiresAuth {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            contractWhitelist[addresses[i]] = status;
+            emit ContractWhitelistUpdated(addresses[i], status);
+        }
+    }
+
     // ========================================= BeforeTransferHook FUNCTIONS =========================================
 
     /**
@@ -254,6 +355,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         external
         requiresAuth
         nonReentrant
+        checkAccess(msg.sender)
         returns (uint256 shares)
     {
         if (isPaused) revert TellerWithMultiAssetSupport__Paused();
@@ -280,6 +382,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         external
         requiresAuth
         nonReentrant
+        checkAccess(msg.sender)
         returns (uint256 shares)
     {
         if (isPaused) revert TellerWithMultiAssetSupport__Paused();
@@ -311,6 +414,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         external
         requiresAuth
         nonReentrant
+        checkAccess(to)
         returns (uint256 shares)
     {
         if (!isSupported[depositAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
@@ -331,6 +435,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     )
         external
         requiresAuth
+        checkAccess(msg.sender)
         returns (uint256 assetsOut)
     {
         if (!isSupported[withdrawAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
