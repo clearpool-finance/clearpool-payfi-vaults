@@ -104,7 +104,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     event PayoutAddressUpdated(address oldPayout, address newPayout);
     event RateProviderUpdated(address asset, bool isPegged, address rateProvider);
     event ExchangeRateUpdated(uint96 oldRate, uint96 newRate, uint64 currentTime);
-    event FeesClaimed(address indexed feeAsset, uint256 amount);
+    event FeesClaimed(address indexed _feeAsset, uint256 amount);
     event LendingRateUpdated(uint256 newRate, uint256 timestamp);
     event ProtocolFeeRateUpdated(uint256 newRate, uint256 timestamp);
     event MaxLendingRateUpdated(uint256 newMaxRate);
@@ -266,7 +266,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Only checkpoints protocol fees, not interest (since we're manually setting the rate)
      * @dev Callable by UPDATE_EXCHANGE_RATE_ROLE.
      */
-    function updateExchangeRate(uint96 newExchangeRate) external requiresAuth {
+    function updateExchangeRate(uint96 _newExchangeRate) external requiresAuth {
         AccountantState storage state = accountantState;
         if (state.isPaused) revert AccountantWithRateProviders__Paused();
 
@@ -281,8 +281,8 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
         if (
             currentTime < state.lastUpdateTimestamp + state.minimumUpdateDelayInSeconds
-                || newExchangeRate > uint256(currentRateWithInterest).mulDivDown(state.allowedExchangeRateChangeUpper, 1e4)
-                || newExchangeRate < uint256(currentRateWithInterest).mulDivDown(state.allowedExchangeRateChangeLower, 1e4)
+                || _newExchangeRate > uint256(currentRateWithInterest).mulDivDown(state.allowedExchangeRateChangeUpper, 1e4)
+                || _newExchangeRate < uint256(currentRateWithInterest).mulDivDown(state.allowedExchangeRateChangeLower, 1e4)
         ) {
             // Instead of reverting, pause the contract
             state.isPaused = true;
@@ -295,20 +295,20 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
             // Determine management fees owned (use stored rate for this calculation)
             uint256 timeDelta = currentTime - state.lastUpdateTimestamp;
-            uint256 minimumAssets = newExchangeRate > state.exchangeRate
+            uint256 minimumAssets = _newExchangeRate > state.exchangeRate
                 ? shareSupplyToUse.mulDivDown(state.exchangeRate, ONE_SHARE)
-                : shareSupplyToUse.mulDivDown(newExchangeRate, ONE_SHARE);
+                : shareSupplyToUse.mulDivDown(_newExchangeRate, ONE_SHARE);
             uint256 managementFeesAnnual = minimumAssets.mulDivDown(state.managementFee, 1e4);
             uint256 newFeesOwedInBase = managementFeesAnnual.mulDivDown(timeDelta, 365 days);
 
             state.feesOwedInBase += uint128(newFeesOwedInBase);
         }
 
-        state.exchangeRate = newExchangeRate;
+        state.exchangeRate = _newExchangeRate;
         state.totalSharesLastUpdate = uint128(currentTotalShares);
         state.lastUpdateTimestamp = currentTime;
 
-        emit ExchangeRateUpdated(uint96(state.exchangeRate), newExchangeRate, currentTime);
+        emit ExchangeRateUpdated(uint96(state.exchangeRate), _newExchangeRate, currentTime);
     }
 
     /**
@@ -356,9 +356,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @notice Claim pending fees.
      * @dev This function must be called by the BoringVault.
      * @dev This function will lose precision if the exchange rate
-     *      decimals is greater than the feeAsset's decimals.
+     *      decimals is greater than the _feeAsset's decimals.
      */
-    function claimFees(ERC20 feeAsset) external {
+    function claimFees(ERC20 _feeAsset) external {
         if (msg.sender != address(vault)) revert AccountantWithRateProviders__OnlyCallableByBoringVault();
 
         AccountantState storage state = accountantState;
@@ -370,13 +370,13 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
         if (state.feesOwedInBase == 0) revert AccountantWithRateProviders__ZeroFeesOwed();
 
-        // Determine amount of fees owed in feeAsset
+        // Determine amount of fees owed in _feeAsset
         uint256 feesOwedInFeeAsset;
-        RateProviderData memory data = rateProviderData[feeAsset];
-        if (address(feeAsset) == address(base)) {
+        RateProviderData memory data = rateProviderData[_feeAsset];
+        if (address(_feeAsset) == address(base)) {
             feesOwedInFeeAsset = state.feesOwedInBase;
         } else {
-            uint8 feeAssetDecimals = ERC20(feeAsset).decimals();
+            uint8 feeAssetDecimals = ERC20(_feeAsset).decimals();
             uint256 feesOwedInBaseUsingFeeAssetDecimals =
                 changeDecimals(state.feesOwedInBase, decimals, feeAssetDecimals);
             if (data.isPeggedToBase) {
@@ -391,9 +391,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         state.feesOwedInBase = 0;
 
         // Transfer fee asset to payout address
-        feeAsset.safeTransferFrom(msg.sender, state.payoutAddress, feesOwedInFeeAsset);
+        _feeAsset.safeTransferFrom(msg.sender, state.payoutAddress, feesOwedInFeeAsset);
 
-        emit FeesClaimed(address(feeAsset), feesOwedInFeeAsset);
+        emit FeesClaimed(address(_feeAsset), feesOwedInFeeAsset);
     }
 
     // ========================================= RATE FUNCTIONS =========================================
@@ -446,17 +446,17 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @notice Get this BoringVault's current rate in the provided quote.
      * @dev `quote` must have its RateProviderData set, else this will revert.
      * @dev This function will lose precision if the exchange rate
-     *      decimals is greater than the quote's decimals.
+     *      decimals is greater than the _quote's decimals.
      */
-    function getRateInQuote(ERC20 quote) public view returns (uint256 rateInQuote) {
+    function getRateInQuote(ERC20 _quote) public view returns (uint256 rateInQuote) {
         // Get real-time rate first
         (uint96 currentRate,) = calculateExchangeRateWithInterest();
 
-        if (address(quote) == address(base)) {
+        if (address(_quote) == address(base)) {
             rateInQuote = currentRate;
         } else {
-            RateProviderData memory data = rateProviderData[quote];
-            uint8 quoteDecimals = ERC20(quote).decimals();
+            RateProviderData memory data = rateProviderData[_quote];
+            uint8 quoteDecimals = ERC20(_quote).decimals();
             uint256 exchangeRateInQuoteDecimals = changeDecimals(currentRate, decimals, quoteDecimals);
             if (data.isPeggedToBase) {
                 rateInQuote = exchangeRateInQuoteDecimals;
@@ -473,9 +473,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev `quote` must have its RateProviderData set, else this will revert.
      * @dev Revert if paused.
      */
-    function getRateInQuoteSafe(ERC20 quote) external view returns (uint256 rateInQuote) {
+    function getRateInQuoteSafe(ERC20 _quote) external view returns (uint256 rateInQuote) {
         if (accountantState.isPaused) revert AccountantWithRateProviders__Paused();
-        rateInQuote = getRateInQuote(quote);
+        rateInQuote = getRateInQuote(_quote);
     }
 
     /**
@@ -485,22 +485,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      */
     function getBorrowerRate() public view returns (uint256) {
         return lendingInfo.lendingRate + lendingInfo.protocolFeeRate;
-    }
-
-    /**
-     * @notice Get asset's base rate without vault exchange rate
-     */
-    function getAssetToBaseRate(ERC20 asset) public view returns (uint256 rate) {
-        if (address(asset) == address(base)) {
-            return 10 ** decimals;
-        }
-
-        RateProviderData memory data = rateProviderData[asset];
-        if (data.isPeggedToBase) {
-            return 10 ** decimals;
-        } else {
-            return data.rateProvider.getRate();
-        }
     }
 
     /**
@@ -569,13 +553,13 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     /**
      * @notice Used to change the decimals of precision used for an amount.
      */
-    function changeDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
-        if (fromDecimals == toDecimals) {
-            return amount;
-        } else if (fromDecimals < toDecimals) {
-            return amount * 10 ** (toDecimals - fromDecimals);
+    function changeDecimals(uint256 _amount, uint8 _fromDecimals, uint8 _toDecimals) internal pure returns (uint256) {
+        if (_fromDecimals == _toDecimals) {
+            return _amount;
+        } else if (_fromDecimals < _toDecimals) {
+            return _amount * 10 ** (_toDecimals - _fromDecimals);
         } else {
-            return amount / 10 ** (fromDecimals - toDecimals);
+            return _amount / 10 ** (_fromDecimals - _toDecimals);
         }
     }
 }
