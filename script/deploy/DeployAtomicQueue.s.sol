@@ -8,17 +8,20 @@ import { ConfigReader } from "../ConfigReader.s.sol";
 
 using StdJson for string;
 
-bytes32 constant SALT = 0x5bac910c72debe007de88c000000000000000000000000000000000000000000;
+bytes32 constant SALT = 0x5bac910c72debe007de11d000000000000000000000000000000000000000000;
 
 contract DeployAtomicQueue is BaseScript {
     function run() public broadcast returns (AtomicQueue atomicQueue) {
-        bytes memory creationCode = type(AtomicQueue).creationCode;
+        // Need to pass config to get accountant
+        ConfigReader.Config memory config = getConfig();
+
+        bytes memory creationCode = abi.encodePacked(type(AtomicQueue).creationCode, abi.encode(config.accountant));
 
         atomicQueue = AtomicQueue(CREATEX.deployCreate3(SALT, creationCode));
     }
 
-    function deploy(ConfigReader.Config memory) public override broadcast returns (address) {
-        bytes memory creationCode = type(AtomicQueue).creationCode;
+    function deploy(ConfigReader.Config memory config) public override broadcast returns (address) {
+        bytes memory creationCode = abi.encodePacked(type(AtomicQueue).creationCode, abi.encode(config.accountant));
 
         return CREATEX.deployCreate3(SALT, creationCode);
     }

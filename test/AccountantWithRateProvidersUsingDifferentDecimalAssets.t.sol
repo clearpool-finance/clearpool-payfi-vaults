@@ -52,7 +52,7 @@ contract AccountantWithRateProvidersUsingDifferentDecimalTest is Test, MainnetAd
         accountant.setRateProviderData(SDAI, false, sDaiRateProvider);
 
         // Start accounting so we can claim fees during a test.
-        accountant.updateManagementFee(0.01e4);
+        accountant.setManagementFeeRate(0.01e4);
 
         skip(1 days / 24);
         // Increase exchange rate by 5 bps.
