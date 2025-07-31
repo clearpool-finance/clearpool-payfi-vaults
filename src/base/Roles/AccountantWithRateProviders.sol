@@ -23,11 +23,11 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @param feesOwedInBase total pending fees owed in terms of base
      * @param totalSharesLastUpdate total amount of shares the last exchange rate update
      * @param exchangeRate the current exchange rate in terms of base
-     * @param allowedExchangeRateChangeUpper the max allowed change to exchange rate from an update
-     * @param allowedExchangeRateChangeLower the min allowed change to exchange rate from an update
+     * @param _allowedExchangeRateChangeUpper the max allowed change to exchange rate from an update
+     * @param _allowedExchangeRateChangeLower the min allowed change to exchange rate from an update
      * @param lastUpdateTimestamp the block timestamp of the last exchange rate update
      * @param isPaused whether or not this contract is paused
-     * @param minimumUpdateDelayInSeconds the minimum amount of time that must pass between
+     * @param _minimumUpdateDelayInSeconds the minimum amount of time that must pass between
      *        exchange rate updates, such that the update won't trigger the contract to be paused
      * @param managementFee the management fee
      */
@@ -36,11 +36,11 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         uint128 feesOwedInBase;
         uint128 totalSharesLastUpdate;
         uint96 exchangeRate;
-        uint16 allowedExchangeRateChangeUpper;
-        uint16 allowedExchangeRateChangeLower;
+        uint16 _allowedExchangeRateChangeUpper;
+        uint16 _allowedExchangeRateChangeLower;
         uint64 lastUpdateTimestamp;
         bool isPaused;
-        uint32 minimumUpdateDelayInSeconds;
+        uint32 _minimumUpdateDelayInSeconds;
         uint16 managementFee;
     }
 
@@ -138,9 +138,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         address payoutAddress,
         uint96 startingExchangeRate,
         address _base,
-        uint16 allowedExchangeRateChangeUpper,
-        uint16 allowedExchangeRateChangeLower,
-        uint32 minimumUpdateDelayInSeconds,
+        uint16 _allowedExchangeRateChangeUpper,
+        uint16 _allowedExchangeRateChangeLower,
+        uint32 _minimumUpdateDelayInSeconds,
         uint16 managementFee
     )
         Auth(_owner, Authority(address(0)))
@@ -154,11 +154,11 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
             feesOwedInBase: 0,
             totalSharesLastUpdate: uint128(vault.totalSupply()),
             exchangeRate: startingExchangeRate,
-            allowedExchangeRateChangeUpper: allowedExchangeRateChangeUpper,
-            allowedExchangeRateChangeLower: allowedExchangeRateChangeLower,
+            _allowedExchangeRateChangeUpper: _allowedExchangeRateChangeUpper,
+            _allowedExchangeRateChangeLower: _allowedExchangeRateChangeLower,
             lastUpdateTimestamp: uint64(block.timestamp),
             isPaused: false,
-            minimumUpdateDelayInSeconds: minimumUpdateDelayInSeconds,
+            _minimumUpdateDelayInSeconds: _minimumUpdateDelayInSeconds,
             managementFee: managementFee
         });
         lendingInfo.lastAccrualTime = block.timestamp;
@@ -193,54 +193,54 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      *      the exchange rate updated as frequently as needed.
      * @dev Callable by OWNER_ROLE.
      */
-    function updateDelay(uint32 minimumUpdateDelayInSeconds) external requiresAuth {
-        if (minimumUpdateDelayInSeconds > 14 days) revert AccountantWithRateProviders__UpdateDelayTooLarge();
-        uint32 oldDelay = accountantState.minimumUpdateDelayInSeconds;
-        accountantState.minimumUpdateDelayInSeconds = minimumUpdateDelayInSeconds;
-        emit DelayInSecondsUpdated(oldDelay, minimumUpdateDelayInSeconds);
+    function updateDelay(uint32 _minimumUpdateDelayInSeconds) external requiresAuth {
+        if (_minimumUpdateDelayInSeconds > 14 days) revert AccountantWithRateProviders__UpdateDelayTooLarge();
+        uint32 oldDelay = accountantState._minimumUpdateDelayInSeconds;
+        accountantState._minimumUpdateDelayInSeconds = _minimumUpdateDelayInSeconds;
+        emit DelayInSecondsUpdated(oldDelay, _minimumUpdateDelayInSeconds);
     }
 
     /**
      * @notice Update the allowed upper bound change of exchange rate between `updateExchangeRateCalls`.
      * @dev Callable by OWNER_ROLE.
      */
-    function updateUpper(uint16 allowedExchangeRateChangeUpper) external requiresAuth {
-        if (allowedExchangeRateChangeUpper < 1e4) revert AccountantWithRateProviders__UpperBoundTooSmall();
-        uint16 oldBound = accountantState.allowedExchangeRateChangeUpper;
-        accountantState.allowedExchangeRateChangeUpper = allowedExchangeRateChangeUpper;
-        emit UpperBoundUpdated(oldBound, allowedExchangeRateChangeUpper);
+    function updateUpper(uint16 _allowedExchangeRateChangeUpper) external requiresAuth {
+        if (_allowedExchangeRateChangeUpper < 1e4) revert AccountantWithRateProviders__UpperBoundTooSmall();
+        uint16 oldBound = accountantState._allowedExchangeRateChangeUpper;
+        accountantState._allowedExchangeRateChangeUpper = _allowedExchangeRateChangeUpper;
+        emit UpperBoundUpdated(oldBound, _allowedExchangeRateChangeUpper);
     }
 
     /**
      * @notice Update the allowed lower bound change of exchange rate between `updateExchangeRateCalls`.
      * @dev Callable by OWNER_ROLE.
      */
-    function updateLower(uint16 allowedExchangeRateChangeLower) external requiresAuth {
-        if (allowedExchangeRateChangeLower > 1e4) revert AccountantWithRateProviders__LowerBoundTooLarge();
-        uint16 oldBound = accountantState.allowedExchangeRateChangeLower;
-        accountantState.allowedExchangeRateChangeLower = allowedExchangeRateChangeLower;
-        emit LowerBoundUpdated(oldBound, allowedExchangeRateChangeLower);
+    function updateLower(uint16 _allowedExchangeRateChangeLower) external requiresAuth {
+        if (_allowedExchangeRateChangeLower > 1e4) revert AccountantWithRateProviders__LowerBoundTooLarge();
+        uint16 oldBound = accountantState._allowedExchangeRateChangeLower;
+        accountantState._allowedExchangeRateChangeLower = _allowedExchangeRateChangeLower;
+        emit LowerBoundUpdated(oldBound, _allowedExchangeRateChangeLower);
     }
 
     /**
      * @notice Update the management fee to a new value.
      * @dev Callable by OWNER_ROLE.
      */
-    function updateManagementFee(uint16 managementFee) external requiresAuth {
-        if (managementFee > 0.2e4) revert AccountantWithRateProviders__ManagementFeeTooLarge();
+    function updateManagementFee(uint16 _managementFee) external requiresAuth {
+        if (_managementFee > 0.2e4) revert AccountantWithRateProviders__ManagementFeeTooLarge();
         uint16 oldFee = accountantState.managementFee;
-        accountantState.managementFee = managementFee;
-        emit ManagementFeeUpdated(oldFee, managementFee);
+        accountantState.managementFee = _managementFee;
+        emit ManagementFeeUpdated(oldFee, _managementFee);
     }
 
     /**
      * @notice Update the payout address fees are sent to.
      * @dev Callable by OWNER_ROLE.
      */
-    function updatePayoutAddress(address payoutAddress) external requiresAuth {
+    function updatePayoutAddress(address _payoutAddress) external requiresAuth {
         address oldPayout = accountantState.payoutAddress;
-        accountantState.payoutAddress = payoutAddress;
-        emit PayoutAddressUpdated(oldPayout, payoutAddress);
+        accountantState.payoutAddress = _payoutAddress;
+        emit PayoutAddressUpdated(oldPayout, _payoutAddress);
     }
 
     /**
@@ -250,10 +250,10 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * as `asset`.
      * @dev Callable by OWNER_ROLE.
      */
-    function setRateProviderData(ERC20 asset, bool isPeggedToBase, address rateProvider) external requiresAuth {
-        rateProviderData[asset] =
-            RateProviderData({ isPeggedToBase: isPeggedToBase, rateProvider: IRateProvider(rateProvider) });
-        emit RateProviderUpdated(address(asset), isPeggedToBase, rateProvider);
+    function setRateProviderData(ERC20 _asset, bool _isPeggedToBase, address _rateProvider) external requiresAuth {
+        rateProviderData[_asset] =
+            RateProviderData({ isPeggedToBase: _isPeggedToBase, rateProvider: IRateProvider(_rateProvider) });
+        emit RateProviderUpdated(address(_asset), _isPeggedToBase, _rateProvider);
     }
 
     // ========================================= UPDATE EXCHANGE RATE/FEES FUNCTIONS
@@ -280,9 +280,11 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         uint256 currentTotalShares = vault.totalSupply();
 
         if (
-            currentTime < state.lastUpdateTimestamp + state.minimumUpdateDelayInSeconds
-                || _newExchangeRate > uint256(currentRateWithInterest).mulDivDown(state.allowedExchangeRateChangeUpper, 1e4)
-                || _newExchangeRate < uint256(currentRateWithInterest).mulDivDown(state.allowedExchangeRateChangeLower, 1e4)
+            currentTime < state.lastUpdateTimestamp + state._minimumUpdateDelayInSeconds
+                || _newExchangeRate
+                    > uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeUpper, 1e4)
+                || _newExchangeRate
+                    < uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeLower, 1e4)
         ) {
             // Instead of reverting, pause the contract
             state.isPaused = true;

@@ -60,7 +60,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
     /**
      * @dev Maps deposit nonce to keccak256(address receiver, address _depositAsset, uint256 _depositAmount, uint256
-     * _shareAmount, uint256 timestamp, uint256 shareLockPeriod).
+     * _shareAmount, uint256 _timestamp, uint256 _shareLockPeriod).
      */
     mapping(uint256 => bytes32) public publicDepositHistory;
 
@@ -380,9 +380,9 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         uint256 _depositAmount,
         uint256 _minimumMint,
         uint256 _deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
     )
         external
         requiresAuth
@@ -394,7 +394,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         if (!isSupported[_depositAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
 
         // solhint-disable-next-line no-empty-blocks
-        try _depositAsset.permit(msg.sender, address(vault), _depositAmount, _deadline, v, r, s) { }
+        try _depositAsset.permit(msg.sender, address(vault), _depositAmount, _deadline, _v, _r, _s) { }
         catch {
             if (_depositAsset.allowance(msg.sender, address(vault)) < _depositAmount) {
                 revert TellerWithMultiAssetSupport__PermitFailedAndAllowanceTooLow();
@@ -486,7 +486,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      * @notice Handle share lock logic, and event.
      */
     function _afterPublicDeposit(
-        address user,
+        address _user,
         ERC20 _depositAsset,
         uint256 _depositAmount,
         uint256 _shares,
@@ -494,15 +494,15 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     )
         internal
     {
-        shareUnlockTime[user] = block.timestamp + _currentShareLockPeriod;
+        shareUnlockTime[_user] = block.timestamp + _currentShareLockPeriod;
 
         uint256 nonce = depositNonce;
         publicDepositHistory[nonce] = keccak256(
-            abi.encode(user, _depositAsset, _depositAmount, _shares, block.timestamp, _currentShareLockPeriod)
+            abi.encode(_user, _depositAsset, _depositAmount, _shares, block.timestamp, _currentShareLockPeriod)
         );
         depositNonce++;
         emit Deposit(
-            nonce, user, address(_depositAsset), _depositAmount, _shares, block.timestamp, _currentShareLockPeriod
+            nonce, _user, address(_depositAsset), _depositAmount, _shares, block.timestamp, _currentShareLockPeriod
         );
     }
 }
