@@ -78,7 +78,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
 
         rolesAuthority = new RolesAuthority(address(this), Authority(address(0)));
 
-        atomicQueue = new AtomicQueue();
+        atomicQueue = new AtomicQueue(address(accountant));
         atomicSolverV3 = new AtomicSolverV3(address(this), rolesAuthority);
 
         boringVault.setAuthority(rolesAuthority);
@@ -394,12 +394,11 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
         // Share lock period is not set, so user can submit withdraw request immediately.
         AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
             deadline: uint64(block.timestamp + 1 days),
-            atomicPrice: 1e18,
             offerAmount: uint96(shares),
             inSolve: false
         });
         boringVault.approve(address(atomicQueue), shares);
-        atomicQueue.updateAtomicRequest(boringVault, WETH, req);
+        atomicQueue.updateAtomicRequest(boringVault, WETH, req.deadline, req.offerAmount);
         vm.stopPrank();
 
         // Solver approves solver contract to spend enough assets to cover withdraw.

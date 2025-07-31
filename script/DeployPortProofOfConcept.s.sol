@@ -58,7 +58,7 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
 
         rolesAuthority = new RolesAuthority(owner, Authority(address(0)));
 
-        atomicQueue = new AtomicQueue();
+        atomicQueue = new AtomicQueue(address(accountant));
 
         atomicSolverV3 = new AtomicSolverV3(address(this), rolesAuthority);
 
