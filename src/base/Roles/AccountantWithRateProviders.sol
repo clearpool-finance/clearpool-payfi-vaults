@@ -24,34 +24,33 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @param exchangeRate the current exchange rate in terms of base
      * @param _allowedExchangeRateChangeUpper the max allowed change to exchange rate from an update
      * @param _allowedExchangeRateChangeLower the min allowed change to exchange rate from an update
-     * @param lastUpdateTimestamp the block timestamp of the last exchange rate update
-     * @param isPaused whether or not this contract is paused
+     * @param _lastUpdateTimestamp the block timestamp of the last exchange rate update
+     * @param _isPaused whether or not this contract is paused
      * @param _minimumUpdateDelayInSeconds the minimum amount of time that must pass between
      *        exchange rate updates, such that the update won't trigger the contract to be paused
-     * @param managementFee the management fee
+     * @param _managementFee the management fee
      */
     struct AccountantState {
-        address payoutAddress;
-        uint128 feesOwedInBase;
-        uint128 totalSharesLastUpdate;
-        uint96 exchangeRate;
+        address _payoutAddress;
+        uint128 _feesOwedInBase;
+        uint128 _totalSharesLastUpdate;
+        uint96 _exchangeRate;
         uint16 _allowedExchangeRateChangeUpper;
         uint16 _allowedExchangeRateChangeLower;
-        uint64 lastUpdateTimestamp;
-        bool isPaused;
+        uint64 _lastUpdateTimestamp;
+        bool _isPaused;
         uint32 _minimumUpdateDelayInSeconds;
-        uint16 managementFee;
+        uint16 _managementFee;
     }
 
     /**
      * @notice Lending specific state
-     * @param lendingRate Annual lending interest rate in basis points (1000 = 10%)
-     * @param lastAccrualTime Timestamp of last interest accrual
+     * @param _lendingRate Annual lending interest rate in basis points (1000 = 10%)
+     * @param _lastAccrualTime Timestamp of last interest accrual
      */
     struct LendingInfo {
-        uint256 lendingRate; // Rate for vault growth
-        uint256 protocolFeeRate; // Management rate for protocol
-        uint256 lastAccrualTime; // Last checkpoint
+        uint256 _lendingRate; // Rate for vault growth
+        uint256 _lastAccrualTime; // Last checkpoint
     }
 
     /**
@@ -99,13 +98,12 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     event DelayInSecondsUpdated(uint32 oldDelay, uint32 newDelay);
     event UpperBoundUpdated(uint16 oldBound, uint16 newBound);
     event LowerBoundUpdated(uint16 oldBound, uint16 newBound);
-    event ManagementFeeUpdated(uint16 oldFee, uint16 newFee);
     event PayoutAddressUpdated(address oldPayout, address newPayout);
     event RateProviderUpdated(address asset, bool isPegged, address rateProvider);
     event ExchangeRateUpdated(uint96 oldRate, uint96 newRate, uint64 currentTime);
-    event FeesClaimed(address indexed _feeAsset, uint256 amount);
+    event FeesClaimed(address indexed feeAsset, uint256 amount);
     event LendingRateUpdated(uint256 newRate, uint256 timestamp);
-    event ProtocolFeeRateUpdated(uint256 newRate, uint256 timestamp);
+    event ManagementFeeRateUpdated(uint16 newRate, uint256 timestamp);
     event MaxLendingRateUpdated(uint256 newMaxRate);
 
     //============================== IMMUTABLES ===============================
@@ -134,13 +132,13 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     constructor(
         address _owner,
         address _vault,
-        address payoutAddress,
-        uint96 startingExchangeRate,
+        address _payoutAddress,
+        uint96 _startingExchangeRate,
         address _base,
         uint16 _allowedExchangeRateChangeUpper,
         uint16 _allowedExchangeRateChangeLower,
         uint32 _minimumUpdateDelayInSeconds,
-        uint16 managementFee
+        uint16 _managementFee
     )
         Auth(_owner, Authority(address(0)))
     {
@@ -149,18 +147,18 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         vault = BoringVault(payable(_vault));
         ONE_SHARE = 10 ** vault.decimals();
         accountantState = AccountantState({
-            payoutAddress: payoutAddress,
-            feesOwedInBase: 0,
-            totalSharesLastUpdate: uint128(vault.totalSupply()),
-            exchangeRate: startingExchangeRate,
+            _payoutAddress: _payoutAddress,
+            _feesOwedInBase: 0,
+            _totalSharesLastUpdate: uint128(vault.totalSupply()),
+            _exchangeRate: _startingExchangeRate,
             _allowedExchangeRateChangeUpper: _allowedExchangeRateChangeUpper,
             _allowedExchangeRateChangeLower: _allowedExchangeRateChangeLower,
-            lastUpdateTimestamp: uint64(block.timestamp),
-            isPaused: false,
+            _lastUpdateTimestamp: uint64(block.timestamp),
+            _isPaused: false,
             _minimumUpdateDelayInSeconds: _minimumUpdateDelayInSeconds,
-            managementFee: managementFee
+            _managementFee: _managementFee
         });
-        lendingInfo.lastAccrualTime = block.timestamp;
+        lendingInfo._lastAccrualTime = block.timestamp;
         maxLendingRate = 5000;
     }
 
@@ -172,7 +170,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Callable by MULTISIG_ROLE.
      */
     function pause() external requiresAuth {
-        accountantState.isPaused = true;
+        accountantState._isPaused = true;
         emit Paused();
     }
 
@@ -182,7 +180,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Callable by MULTISIG_ROLE.
      */
     function unpause() external requiresAuth {
-        accountantState.isPaused = false;
+        accountantState._isPaused = false;
         emit Unpaused();
     }
 
@@ -222,23 +220,12 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     }
 
     /**
-     * @notice Update the management fee to a new value.
-     * @dev Callable by OWNER_ROLE.
-     */
-    function updateManagementFee(uint16 _managementFee) external requiresAuth {
-        if (_managementFee > 0.2e4) revert AccountantWithRateProviders__ManagementFeeTooLarge();
-        uint16 oldFee = accountantState.managementFee;
-        accountantState.managementFee = _managementFee;
-        emit ManagementFeeUpdated(oldFee, _managementFee);
-    }
-
-    /**
      * @notice Update the payout address fees are sent to.
      * @dev Callable by OWNER_ROLE.
      */
     function updatePayoutAddress(address _payoutAddress) external requiresAuth {
-        address oldPayout = accountantState.payoutAddress;
-        accountantState.payoutAddress = _payoutAddress;
+        address oldPayout = accountantState._payoutAddress;
+        accountantState._payoutAddress = _payoutAddress;
         emit PayoutAddressUpdated(oldPayout, _payoutAddress);
     }
 
@@ -262,59 +249,45 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @notice Updates this contract exchangeRate.
      * @dev If new exchange rate is outside of accepted bounds, or if not enough time has passed, this
      *      will pause the contract, and this function will NOT calculate fees owed.
-     * @dev Only checkpoints protocol fees, not interest (since we're manually setting the rate)
+     * @dev Only checkpoints management fees, not interest (since we're manually setting the rate)
      * @dev Callable by UPDATE_EXCHANGE_RATE_ROLE.
      */
     function updateExchangeRate(uint96 _newExchangeRate) external requiresAuth {
         AccountantState storage state = accountantState;
-        if (state.isPaused) revert AccountantWithRateProviders__Paused();
+        if (state._isPaused) revert AccountantWithRateProviders__Paused();
 
         uint64 currentTime = uint64(block.timestamp);
         (uint96 currentRateWithInterest,) = calculateExchangeRateWithInterest();
 
-        // Now checkpoint protocol fees
-        _checkpointProtocolFees();
-        lendingInfo.lastAccrualTime = block.timestamp;
+        uint96 oldExchangeRate = state._exchangeRate;
+
+        _checkpointManagementFees();
+        lendingInfo._lastAccrualTime = block.timestamp;
 
         uint256 currentTotalShares = vault.totalSupply();
 
         if (
-            currentTime < state.lastUpdateTimestamp + state._minimumUpdateDelayInSeconds
+            currentTime < state._lastUpdateTimestamp + state._minimumUpdateDelayInSeconds
                 || _newExchangeRate
                     > uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeUpper, 1e4)
                 || _newExchangeRate
                     < uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeLower, 1e4)
         ) {
             // Instead of reverting, pause the contract
-            state.isPaused = true;
-        } else {
-            // Only update fees if we are not paused
-            uint256 shareSupplyToUse = currentTotalShares;
-            if (state.totalSharesLastUpdate < shareSupplyToUse) {
-                shareSupplyToUse = state.totalSharesLastUpdate;
-            }
-
-            // Determine management fees owned (use stored rate for this calculation)
-            uint256 timeDelta = currentTime - state.lastUpdateTimestamp;
-            uint256 minimumAssets = _newExchangeRate > state.exchangeRate
-                ? shareSupplyToUse.mulDivDown(state.exchangeRate, ONE_SHARE)
-                : shareSupplyToUse.mulDivDown(_newExchangeRate, ONE_SHARE);
-            uint256 managementFeesAnnual = minimumAssets.mulDivDown(state.managementFee, 1e4);
-            uint256 newFeesOwedInBase = managementFeesAnnual.mulDivDown(timeDelta, 365 days);
-
-            state.feesOwedInBase += uint128(newFeesOwedInBase);
+            state._isPaused = true;
         }
 
-        state.exchangeRate = _newExchangeRate;
-        state.totalSharesLastUpdate = uint128(currentTotalShares);
-        state.lastUpdateTimestamp = currentTime;
+        // Always update the rate and timestamp
+        state._exchangeRate = _newExchangeRate;
+        state._totalSharesLastUpdate = uint128(currentTotalShares);
+        state._lastUpdateTimestamp = currentTime;
 
-        emit ExchangeRateUpdated(uint96(state.exchangeRate), _newExchangeRate, currentTime);
+        emit ExchangeRateUpdated(oldExchangeRate, _newExchangeRate, currentTime);
     }
 
     /**
-     * @notice Set lending rate (expensive - requires checkpoint)
-     * @dev Checkpoints current interest and protocol fees before changing rate
+     * @notice Set lending rate
+     * @dev Checkpoints current interest and management fees before changing rate
      * @dev This prevents loss of accrued value when rate changes
      * @param _lendingRate New lending rate in basis points (1000 = 10% APY)
      */
@@ -324,24 +297,25 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         // Checkpoint both interest and fees before rate change
         _checkpointInterestAndFees();
 
-        lendingInfo.lendingRate = _lendingRate;
-        lendingInfo.lastAccrualTime = block.timestamp;
+        lendingInfo._lendingRate = _lendingRate;
+        lendingInfo._lastAccrualTime = block.timestamp;
         emit LendingRateUpdated(_lendingRate, block.timestamp);
     }
 
     /**
-     * @notice Set protocol fee rate (requires checkpoint)
-     * @dev Checkpoints current protocol fees at old rate before changing
+     * @notice Set management fee rate (requires checkpoint)
+     * @dev Checkpoints current management fees at old rate before changing
      * @dev This ensures fees are correctly attributed to each rate period
-     * @param _protocolFeeRate New protocol fee rate in basis points
+     * @param _managementFeeRate New management fee rate in basis points
      */
-    function setProtocolFeeRate(uint256 _protocolFeeRate) external requiresAuth {
-        // Checkpoint protocol fees only (no interest impact)
-        _checkpointProtocolFees();
+    function setManagementFeeRate(uint16 _managementFeeRate) external requiresAuth {
+        if (_managementFeeRate > 0.2e4) revert AccountantWithRateProviders__ManagementFeeTooLarge();
+        // Checkpoint management fees only (no interest impact)
+        _checkpointManagementFees();
 
-        lendingInfo.protocolFeeRate = _protocolFeeRate;
-        lendingInfo.lastAccrualTime = block.timestamp;
-        emit ProtocolFeeRateUpdated(_protocolFeeRate, block.timestamp);
+        accountantState._managementFee = _managementFeeRate;
+        lendingInfo._lastAccrualTime = block.timestamp;
+        emit ManagementFeeRateUpdated(_managementFeeRate, block.timestamp);
     }
 
     /**
@@ -363,23 +337,23 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         if (msg.sender != address(vault)) revert AccountantWithRateProviders__OnlyCallableByBoringVault();
 
         AccountantState storage state = accountantState;
-        if (state.isPaused) revert AccountantWithRateProviders__Paused();
+        if (state._isPaused) revert AccountantWithRateProviders__Paused();
 
-        // Checkpoint any unclaimed protocol fees
-        _checkpointProtocolFees();
-        lendingInfo.lastAccrualTime = block.timestamp;
+        // Checkpoint any unclaimed management fees
+        _checkpointManagementFees();
+        lendingInfo._lastAccrualTime = block.timestamp;
 
-        if (state.feesOwedInBase == 0) revert AccountantWithRateProviders__ZeroFeesOwed();
+        if (state._feesOwedInBase == 0) revert AccountantWithRateProviders__ZeroFeesOwed();
 
         // Determine amount of fees owed in _feeAsset
         uint256 feesOwedInFeeAsset;
         RateProviderData memory data = rateProviderData[_feeAsset];
         if (address(_feeAsset) == address(base)) {
-            feesOwedInFeeAsset = state.feesOwedInBase;
+            feesOwedInFeeAsset = state._feesOwedInBase;
         } else {
             uint8 feeAssetDecimals = ERC20(_feeAsset).decimals();
             uint256 feesOwedInBaseUsingFeeAssetDecimals =
-                changeDecimals(state.feesOwedInBase, decimals, feeAssetDecimals);
+                _changeDecimals(state._feesOwedInBase, decimals, feeAssetDecimals);
             if (data.isPeggedToBase) {
                 feesOwedInFeeAsset = feesOwedInBaseUsingFeeAssetDecimals;
             } else {
@@ -389,10 +363,10 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         }
 
         // Zero out fees owed
-        state.feesOwedInBase = 0;
+        state._feesOwedInBase = 0;
 
         // Transfer fee asset to payout address
-        _feeAsset.safeTransferFrom(msg.sender, state.payoutAddress, feesOwedInFeeAsset);
+        _feeAsset.safeTransferFrom(msg.sender, state._payoutAddress, feesOwedInFeeAsset);
 
         emit FeesClaimed(address(_feeAsset), feesOwedInFeeAsset);
     }
@@ -414,22 +388,21 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @return interestAccrued The amount of interest accrued since last checkpoint
      */
     function calculateExchangeRateWithInterest() public view returns (uint96 newRate, uint256 interestAccrued) {
-        newRate = accountantState.exchangeRate;
+        newRate = accountantState._exchangeRate;
 
-        if (vault.totalSupply() > 0 && lendingInfo.lendingRate > 0) {
-            uint256 timeElapsed = block.timestamp - lendingInfo.lastAccrualTime;
+        if (vault.totalSupply() > 0 && lendingInfo._lendingRate > 0) {
+            uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
 
             // Calculate interest on total deposits
-            uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState.exchangeRate, ONE_SHARE);
+            uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
             interestAccrued =
-                totalDeposits.mulDivDown(lendingInfo.lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
+                totalDeposits.mulDivDown(lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
 
             // Update rate (no fee deduction for lending model)
             uint256 totalSupply = vault.totalSupply();
-            if (totalSupply > 0) {
-                uint256 rateIncrease = interestAccrued.mulDivDown(ONE_SHARE, totalSupply);
-                newRate += uint96(rateIncrease);
-            }
+
+            uint256 rateIncrease = interestAccrued.mulDivDown(ONE_SHARE, totalSupply);
+            newRate += uint96(rateIncrease);
         }
     }
 
@@ -438,7 +411,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Revert if paused.
      */
     function getRateSafe() external view returns (uint256 rate) {
-        if (accountantState.isPaused) revert AccountantWithRateProviders__Paused();
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
         (uint96 currentRate,) = calculateExchangeRateWithInterest();
         rate = currentRate;
     }
@@ -458,7 +431,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         } else {
             RateProviderData memory data = rateProviderData[_quote];
             uint8 quoteDecimals = ERC20(_quote).decimals();
-            uint256 exchangeRateInQuoteDecimals = changeDecimals(currentRate, decimals, quoteDecimals);
+            uint256 exchangeRateInQuoteDecimals = _changeDecimals(currentRate, decimals, quoteDecimals);
             if (data.isPeggedToBase) {
                 rateInQuote = exchangeRateInQuoteDecimals;
             } else {
@@ -475,78 +448,80 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Revert if paused.
      */
     function getRateInQuoteSafe(ERC20 _quote) external view returns (uint256 rateInQuote) {
-        if (accountantState.isPaused) revert AccountantWithRateProviders__Paused();
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
         rateInQuote = getRateInQuote(_quote);
     }
 
     /**
      * @notice Get total rate paid by borrower
-     * @dev This is the sum of lending rate (for depositors) and protocol fee rate
+     * @dev This is the sum of lending rate (for depositors) and management fee rate
      * @return Total borrower rate in basis points
      */
     function getBorrowerRate() public view returns (uint256) {
-        return lendingInfo.lendingRate + lendingInfo.protocolFeeRate;
+        return lendingInfo._lendingRate + accountantState._managementFee;
     }
 
     /**
-     * @notice Preview total protocol fees owed including unclaimed
+     * @notice Preview total management fees owed including unclaimed
      * @dev Calculates real-time fees without modifying state
      * @dev Includes both stored fees and fees accrued since last checkpoint
-     * @return totalFees Total protocol fees owed in base asset
+     * @return totalFees Total management fees owed in base asset
      */
     function previewFeesOwed() external view returns (uint256 totalFees) {
-        totalFees = accountantState.feesOwedInBase;
+        totalFees = accountantState._feesOwedInBase;
 
-        // Add unclaimed protocol fees
-        if (vault.totalSupply() > 0 && lendingInfo.protocolFeeRate > 0) {
-            uint256 timeElapsed = block.timestamp - lendingInfo.lastAccrualTime;
-            uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState.exchangeRate, ONE_SHARE);
-            uint256 protocolFees =
-                totalDeposits.mulDivDown(lendingInfo.protocolFeeRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
-            totalFees += protocolFees;
+        // Add unclaimed management fees
+        if (vault.totalSupply() > 0 && accountantState._managementFee > 0) {
+            uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
+            uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
+            uint256 managementFees =
+                totalDeposits.mulDivDown(accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
+            totalFees += managementFees;
         }
     }
 
     // ========================================= INTERNAL HELPER FUNCTIONS =========================================
     /**
-     * @notice Checkpoint protocol fees only
-     * @dev Updates feesOwedInBase with accrued protocol fees
+     * @notice Checkpoint management fees only
+     * @dev Updates feesOwedInBase with accrued management fees
      */
-    function _checkpointProtocolFees() internal {
-        if (vault.totalSupply() > 0 && lendingInfo.protocolFeeRate > 0) {
-            uint256 timeElapsed = block.timestamp - lendingInfo.lastAccrualTime;
+    function _checkpointManagementFees() internal {
+        if (vault.totalSupply() > 0 && accountantState._managementFee > 0) {
+            uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
             if (timeElapsed > 0) {
-                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState.exchangeRate, ONE_SHARE);
-                uint256 protocolFees =
-                    totalDeposits.mulDivDown(lendingInfo.protocolFeeRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
-                accountantState.feesOwedInBase += uint128(protocolFees);
+                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
+                uint256 managementFees = totalDeposits.mulDivDown(
+                    accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
+                );
+                accountantState._feesOwedInBase += uint128(managementFees);
             }
         }
     }
 
     /**
-     * @notice Checkpoint both interest and protocol fees
-     * @dev Updates exchange rate with interest and feesOwedInBase with protocol fees
+     * @notice Checkpoint both interest and management fees
+     * @dev Updates exchange rate with interest and feesOwedInBase with management fees
      */
     function _checkpointInterestAndFees() internal {
-        if (vault.totalSupply() > 0 && lendingInfo.lendingRate > 0) {
-            uint256 timeElapsed = block.timestamp - lendingInfo.lastAccrualTime;
+        if (vault.totalSupply() > 0 && lendingInfo._lendingRate > 0) {
+            uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
             if (timeElapsed > 0) {
-                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState.exchangeRate, ONE_SHARE);
+                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
 
                 // Calculate and apply interest to exchange rate
                 uint256 interestAccrued =
-                    totalDeposits.mulDivDown(lendingInfo.lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
+                    totalDeposits.mulDivDown(lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
 
                 if (interestAccrued > 0) {
                     uint256 rateIncrease = interestAccrued.mulDivDown(ONE_SHARE, vault.totalSupply());
-                    accountantState.exchangeRate += uint96(rateIncrease);
+                    accountantState._exchangeRate += uint96(rateIncrease);
                 }
 
-                // Calculate and store protocol fees
-                uint256 protocolFees =
-                    totalDeposits.mulDivDown(lendingInfo.protocolFeeRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
-                accountantState.feesOwedInBase += uint128(protocolFees);
+                // Calculate and store management fees
+                uint256 managementFees = totalDeposits.mulDivDown(
+                    accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
+                );
+                accountantState._feesOwedInBase += uint128(managementFees);
             }
         }
     }
@@ -554,7 +529,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     /**
      * @notice Used to change the decimals of precision used for an amount.
      */
-    function changeDecimals(uint256 _amount, uint8 _fromDecimals, uint8 _toDecimals) internal pure returns (uint256) {
+    function _changeDecimals(uint256 _amount, uint8 _fromDecimals, uint8 _toDecimals) internal pure returns (uint256) {
         if (_fromDecimals == _toDecimals) {
             return _amount;
         } else if (_fromDecimals < _toDecimals) {

@@ -179,7 +179,7 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
             ADMIN_ROLE, address(accountant), AccountantWithRateProviders.updateLower.selector, true
         );
         rolesAuthority.setRoleCapability(
-            ADMIN_ROLE, address(accountant), AccountantWithRateProviders.updateManagementFee.selector, true
+            ADMIN_ROLE, address(accountant), AccountantWithRateProviders.setManagementFeeRate.selector, true
         );
         rolesAuthority.setRoleCapability(
             ADMIN_ROLE, address(accountant), AccountantWithRateProviders.updatePayoutAddress.selector, true
