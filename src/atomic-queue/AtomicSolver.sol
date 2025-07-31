@@ -12,7 +12,6 @@ import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 /**
  * @title AtomicSolver
  * @author
- * @custom:security-contact security@molecularlabs.io
  */
 contract AtomicSolver is IAtomicSolver, Owned, ERC721Holder {
     using Address for address;

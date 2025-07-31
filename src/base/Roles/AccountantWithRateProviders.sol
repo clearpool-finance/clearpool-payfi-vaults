@@ -10,7 +10,6 @@ import { Auth, Authority } from "@solmate/auth/Auth.sol";
 
 /**
  * @title AccountantWithRateProviders
- * @custom:security-contact security@molecularlabs.io
  */
 contract AccountantWithRateProviders is Auth, IRateProvider {
     using FixedPointMathLib for uint256;

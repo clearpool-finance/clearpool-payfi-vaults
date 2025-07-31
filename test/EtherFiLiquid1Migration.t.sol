@@ -103,7 +103,7 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
             new GenericRateProvider(liquidV1PriceRouter, selector, yt, bytes32(amount), quote, 0, 0, 0, 0, 0);
 
         // Deploy queue.
-        atomic_queue = new AtomicQueue();
+        atomic_queue = new AtomicQueue(address(accountant));
         atomic_solver = new AtomicSolver(address(this), vault);
 
         rolesAuthority = new RolesAuthority(address(this), Authority(address(0)));
