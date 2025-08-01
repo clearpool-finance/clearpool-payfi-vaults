@@ -249,7 +249,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @notice Updates this contract exchangeRate.
      * @dev If new exchange rate is outside of accepted bounds, or if not enough time has passed, this
      *      will pause the contract, and this function will NOT calculate fees owed.
-     * @dev Only checkpoints management fees, not interest (since we're manually setting the rate)
      * @dev Callable by UPDATE_EXCHANGE_RATE_ROLE.
      */
     function updateExchangeRate(uint96 _newExchangeRate) external requiresAuth {
@@ -261,7 +260,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
         uint96 oldExchangeRate = state._exchangeRate;
 
-        _checkpointManagementFees();
+        _checkpointInterestAndFees();
         lendingInfo._lastAccrualTime = block.timestamp;
 
         uint256 currentTotalShares = vault.totalSupply();
@@ -310,8 +309,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      */
     function setManagementFeeRate(uint16 _managementFeeRate) external requiresAuth {
         if (_managementFeeRate > 0.2e4) revert AccountantWithRateProviders__ManagementFeeTooLarge();
-        // Checkpoint management fees only (no interest impact)
-        _checkpointManagementFees();
+        _checkpointInterestAndFees();
 
         accountantState._managementFee = _managementFeeRate;
         lendingInfo._lastAccrualTime = block.timestamp;
@@ -339,8 +337,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         AccountantState storage state = accountantState;
         if (state._isPaused) revert AccountantWithRateProviders__Paused();
 
-        // Checkpoint any unclaimed management fees
-        _checkpointManagementFees();
+        _checkpointInterestAndFees();
         lendingInfo._lastAccrualTime = block.timestamp;
 
         if (state._feesOwedInBase == 0) revert AccountantWithRateProviders__ZeroFeesOwed();
@@ -470,10 +467,13 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     function previewFeesOwed() external view returns (uint256 totalFees) {
         totalFees = accountantState._feesOwedInBase;
 
-        // Add unclaimed management fees
         if (vault.totalSupply() > 0 && accountantState._managementFee > 0) {
             uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
-            uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
+
+            // Use current rate including interest
+            (uint96 currentRate,) = calculateExchangeRateWithInterest();
+            uint256 totalDeposits = vault.totalSupply().mulDivDown(currentRate, ONE_SHARE);
+
             uint256 managementFees =
                 totalDeposits.mulDivDown(accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
             totalFees += managementFees;
@@ -482,46 +482,28 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
     // ========================================= INTERNAL HELPER FUNCTIONS =========================================
     /**
-     * @notice Checkpoint management fees only
-     * @dev Updates feesOwedInBase with accrued management fees
-     */
-    function _checkpointManagementFees() internal {
-        if (vault.totalSupply() > 0 && accountantState._managementFee > 0) {
-            uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
-            if (timeElapsed > 0) {
-                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
-                uint256 managementFees = totalDeposits.mulDivDown(
-                    accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
-                );
-                accountantState._feesOwedInBase += uint128(managementFees);
-            }
-        }
-    }
-
-    /**
      * @notice Checkpoint both interest and management fees
      * @dev Updates exchange rate with interest and feesOwedInBase with management fees
      */
     function _checkpointInterestAndFees() internal {
-        if (vault.totalSupply() > 0 && lendingInfo._lendingRate > 0) {
+        if (vault.totalSupply() > 0) {
             uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
             if (timeElapsed > 0) {
-                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
+                // Get the current rate with interest
+                (uint96 newRate, uint256 interestAccrued) = calculateExchangeRateWithInterest();
 
-                // Calculate and apply interest to exchange rate
-                uint256 interestAccrued =
-                    totalDeposits.mulDivDown(lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
+                // Update the stored exchange rate
+                accountantState._exchangeRate = newRate;
 
-                if (interestAccrued > 0) {
-                    uint256 rateIncrease = interestAccrued.mulDivDown(ONE_SHARE, vault.totalSupply());
-                    accountantState._exchangeRate += uint96(rateIncrease);
+                // Calculate management fees on the total value
+                if (accountantState._managementFee > 0) {
+                    uint256 totalValue = vault.totalSupply().mulDivDown(newRate, ONE_SHARE);
+
+                    uint256 managementFees = totalValue.mulDivDown(
+                        accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
+                    );
+                    accountantState._feesOwedInBase += uint128(managementFees);
                 }
-
-                // Calculate and store management fees
-                uint256 managementFees = totalDeposits.mulDivDown(
-                    accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
-                );
-                accountantState._feesOwedInBase += uint128(managementFees);
             }
         }
     }

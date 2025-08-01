@@ -467,8 +467,9 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
 
         // Check protocol fees accumulated
         uint256 previewFees = accountant.previewFeesOwed();
-        uint256 expectedFees = uint256(1000e18).mulDivDown(200, 10_000); // 2% of 1000
-        assertApproxEqRel(previewFees, expectedFees, 0.01e18, "Protocol fees should be 2% of deposits");
+        // Management fee is 2% of FINAL value (1000 * 1.1 = 1100)
+        uint256 expectedFees = uint256(1100e18).mulDivDown(200, 10_000); // 2% of 1100
+        assertApproxEqRel(previewFees, expectedFees, 0.01e18, "Protocol fees should be 2% of total value");
         console.log("   Protocol fees owed: %s", previewFees);
     }
 
@@ -691,14 +692,8 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
     function testProtocolFeeAccrualMath() external {
         console.log("\n=== TEST: Protocol Fee Accrual Math ===");
 
-        // Deposit 1000 tokens
         uint256 deposits = 1000e18;
 
-        // Set rates
-        accountant.setLendingRate(1000); // 10% for depositors
-        accountant.setManagementFeeRate(200); // 2% for protocol
-
-        // Test different time periods
         uint256[4] memory periods = [uint256(1 days), 30 days, 90 days, 365 days];
         string[4] memory labels = ["1 day", "30 days", "90 days", "365 days"];
 
@@ -709,23 +704,28 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
                 address(this), address(boringVault), payout_address, 1e18, address(WETH), 1.001e4, 0.999e4, 1, 0
             );
             rolesAuthority.setUserRole(address(accountant), UPDATE_EXCHANGE_RATE_ROLE, true);
+            rolesAuthority.setUserRole(address(accountant), ADMIN_ROLE, true);
             accountant.setLendingRate(1000);
             accountant.setManagementFeeRate(200);
 
             skip(periods[i]);
 
-            // Calculate expected fees - use safe math
-            uint256 annualFees = deposits.mulDivDown(200, 10_000);
-            uint256 expectedFees = annualFees.mulDivDown(periods[i], 365 days);
+            // Get current value INCLUDING interest
+            (uint96 currentRate,) = accountant.calculateExchangeRateWithInterest();
+            uint256 currentValue = deposits.mulDivDown(currentRate, 1e18);
 
-            // Get actual fees
+            // Management fee is 2% ANNUAL, but we need to adjust for time period
+            uint256 expectedFees = currentValue.mulDivDown(200, 10_000) // 2% annual rate
+                .mulDivDown(periods[i], 365 days); // Adjust for actual time period
+
             uint256 actualFees = accountant.previewFeesOwed();
 
             console.log("\n   Period: %s", labels[i]);
+            console.log("     Current value: %d", currentValue);
             console.log("     Expected fees: %d", expectedFees);
             console.log("     Actual fees: %d", actualFees);
 
-            assertApproxEqRel(actualFees, expectedFees, 0.01e18, "Fee calculation accuracy");
+            assertApproxEqRel(actualFees, expectedFees, 0.01e18, "Management fees should be 2% annualized");
         }
     }
 
