@@ -258,6 +258,7 @@ contract AtomicQueue is ReentrancyGuard {
                 );
 
                 request.offerAmount = 0;
+                request.deadline = 0;
                 request.inSolve = false;
             } else {
                 revert AtomicQueue__UserNotInSolve(users[i]);
