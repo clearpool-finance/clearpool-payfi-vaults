@@ -340,6 +340,8 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         // Delete hash to prevent refund gas.
         delete publicDepositHistory[_nonce];
 
+        accountant.checkpoint();
+
         // Burn shares and refund assets to receiver.
         vault.exit(_receiver, ERC20(_depositAsset), _depositAmount, _receiver, _shareAmount);
 
@@ -444,8 +446,10 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         returns (uint256 assetsOut)
     {
         if (!isSupported[_withdrawAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
-
         if (_shareAmount == 0) revert TellerWithMultiAssetSupport__ZeroShares();
+
+        accountant.checkpoint();
+
         assetsOut = _shareAmount.mulDivDown(accountant.getRateInQuoteSafe(_withdrawAsset), ONE_SHARE);
         if (assetsOut < _minimumAssets) revert TellerWithMultiAssetSupport__MinimumAssetsNotMet();
         vault.exit(_to, _withdrawAsset, assetsOut, msg.sender, _shareAmount);
@@ -467,6 +471,8 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         returns (uint256 shares)
     {
         if (_depositAmount == 0) revert TellerWithMultiAssetSupport__ZeroAssets();
+
+        accountant.checkpoint();
 
         // Calculate shares to mint
         shares = _depositAmount.mulDivDown(ONE_SHARE, accountant.getRateInQuoteSafe(_depositAsset));
