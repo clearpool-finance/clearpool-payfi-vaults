@@ -58,6 +58,58 @@ If mode is **not DISABLED**, you'll need whitelisting:
 - **Manual Whitelist**: For EOA addresses
 - Contact protocol admin for whitelisting if required
 
+
+# BoringVault Key Features
+
+## Lending Rate Mechanism
+The vault generates yield through a lending rate system:
+- **Lending Rate**: Continuously accruing interest that increases vault NAV
+- **Management Fee**: Additional fee charged on top of lending rate
+- **Auto-compounding**: Interest accrues in real-time without requiring transactions
+
+```solidity
+// Total rate paid by borrowers (generates LP yield)
+getBorrowerRate() = lendingRate + managementFee
+
+// Real-time NAV including accrued interest
+getRate() // returns current exchange rate with interest
+```
+
+## Access Control Modes
+The vault supports three access control configurations:
+
+| Mode | Name | Requirements |
+|------|------|-------------|
+| 0 | `DISABLED` | Open access - no restrictions |
+| 1 | `KEYRING_KYC` | Requires KYC verification via Keyring |
+| 2 | `MANUAL_WHITELIST` | Requires explicit whitelisting |
+
+```solidity
+// Check current mode
+uint256 mode = teller.accessControlMode();
+
+// Check whitelist status (if mode ≠ 0)
+bool isWhitelisted = teller.contractWhitelist(yourContract);  // For contracts
+bool isWhitelisted = teller.manualWhitelist(yourEOA);        // For EOAs
+```
+
+## NAV-Based Withdrawal Queue
+The AtomicQueue processes all withdrawals at current NAV (not limit orders):
+- No price setting - redemptions at real-time vault NAV
+- Fair value for all users
+- Protection against MEV attacks
+
+```solidity
+// Request withdrawal (no price parameter)
+atomicQueue.updateAtomicRequest(
+    vaultShares,  // your shares
+    USDC,         // desired asset
+    deadline,     // expiry
+    amount        // share amount
+);
+// Receives: amount * currentNAV / 1e18
+```
+
 ## Deposit Integration for LPs
 
 ### Public Deposit Function
