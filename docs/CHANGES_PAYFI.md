@@ -1,19 +1,32 @@
-# Changes in Payfi Implementation
+# Critical Changes in Payfi Boring Vault Implementation
 
-## AccountantWithRateProviders
+## AtomicQueue - Complete Redesign
+### From Limit Orders → NAV Redemption Queue
+- **REMOVED**: `atomicPrice` field - users can no longer set desired prices
+- **ADDED**: Direct integration with `AccountantWithRateProviders` for NAV
+- **All redemptions at current NAV** - no price negotiation
+- Protects users from setting bad prices but removes price control
 
-- Added lending rate mechanism with auto-compounding
-- Separated management fees from lending rates
-- Added `checkpoint()` for interest accrual
-- New `getBorrowerRate()` function
+## AccountantWithRateProviders - New Features
+### Lending Rate Mechanism
+- Auto-compounding interest via `lendingRate`
+- Separate management fees from vault growth
+- Real-time NAV calculation: `getRate()` includes accrued interest
+- Checkpoint system for accurate fee accounting
 
-## TellerWithMultiAssetSupport
+### New Functions
+- `getBorrowerRate()`: Total rate (lending + management)
+- `checkpoint()`: Force interest/fee accrual
+- `previewFeesOwed()`: View unclaimed fees
 
-- Three access control modes (DISABLED, KEYRING_KYC, MANUAL_WHITELIST)
-- Deposit cap implementation
-- Enhanced whitelisting for contracts
+## TellerWithMultiAssetSupport - Enhanced Access Control
+### Three Modes
+1. **DISABLED** (0): Open access
+2. **KEYRING_KYC** (1): KYC verification required
+3. **MANUAL_WHITELIST** (2): Explicit whitelisting
 
-## AtomicQueue
+### New Features
+- `depositCap`: Global deposit limit
+- `contractWhitelist`: Special whitelist for protocols/AMMs
+- Separate from `manualWhitelist` for EOAs
 
-- Updated to use NAV-based pricing from AccountantWithRateProviders
-- Removed atomicPrice in favor of dynamic NAV pricing
