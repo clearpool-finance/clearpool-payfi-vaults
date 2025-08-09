@@ -21,6 +21,7 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupportTest is MultiChainBaseTes
         MultiChainBaseTest.setUp();
         TestHelperOz5.setUp();
         MultiChainLayerZeroTellerWithMultiAssetSupport(sourceTellerAddr).setDepositCap(type(uint256).max);
+        rolesAuthority.setUserRole(address(this), ADMIN_ROLE, true);
     }
 
     function testBridgingShares(uint256 sharesToBridge) external virtual {
@@ -42,7 +43,7 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupportTest is MultiChainBaseTes
             chainSelector: DESTINATION_SELECTOR,
             destinationChainReceiver: to,
             bridgeFeeToken: ERC20(NATIVE),
-            messageGas: 80_000,
+            messageGas: 100_000,
             data: ""
         });
 

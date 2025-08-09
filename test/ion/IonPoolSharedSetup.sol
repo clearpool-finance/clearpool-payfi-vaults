@@ -132,6 +132,10 @@ contract IonPoolSharedSetup is Test, MainnetAddresses {
             true
         );
 
+        rolesAuthority.setRoleCapability(
+            TELLER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true
+        );
+
         rolesAuthority.setRoleCapability(TELLER_ROLE, address(boringVault), BoringVault.enter.selector, true);
 
         rolesAuthority.setRoleCapability(TELLER_ROLE, address(boringVault), BoringVault.exit.selector, true);

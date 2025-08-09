@@ -106,6 +106,9 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
         rolesAuthority.setRoleCapability(
             SOLVER_ROLE, address(teller), TellerWithMultiAssetSupport.bulkWithdraw.selector, true
         );
+        rolesAuthority.setRoleCapability(
+            MINTER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true
+        );
         rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV3.finishSolve.selector, true);
         rolesAuthority.setRoleCapability(
             CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.redeemSolve.selector, true

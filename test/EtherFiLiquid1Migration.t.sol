@@ -142,6 +142,10 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
             true
         );
         rolesAuthority.setRoleCapability(
+            MINTER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true
+        );
+
+        rolesAuthority.setRoleCapability(
             ADMIN_ROLE, address(manager), ManagerWithMerkleVerification.setManageRoot.selector, true
         );
         rolesAuthority.setRoleCapability(

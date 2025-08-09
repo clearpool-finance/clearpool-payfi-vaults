@@ -221,14 +221,19 @@ contract AtomicQueue is ReentrancyGuard {
         for (uint256 i; i < users.length; ++i) {
             AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
 
-            if (request.inSolve) revert AtomicQueue__UserRepeated(users[i]);
-            if (block.timestamp > request.deadline) revert AtomicQueue__RequestDeadlineExceeded(users[i]);
-            if (request.offerAmount == 0) revert AtomicQueue__ZeroOfferAmount(users[i]);
+            if (request.inSolve || block.timestamp > request.deadline || request.offerAmount == 0) {
+                continue;
+            }
 
-            assetsForWant += rate.mulDivDown(request.offerAmount, offerDecimals);
-            assetsToOffer += request.offerAmount;
-            request.inSolve = true;
-            offer.safeTransferFrom(users[i], solver, request.offerAmount);
+            try offer.transferFrom(users[i], solver, request.offerAmount) returns (bool success) {
+                if (success) {
+                    assetsForWant += rate.mulDivDown(request.offerAmount, offerDecimals);
+                    assetsToOffer += request.offerAmount;
+                    request.inSolve = true;
+                }
+            } catch {
+                continue;
+            }
         }
     }
 
