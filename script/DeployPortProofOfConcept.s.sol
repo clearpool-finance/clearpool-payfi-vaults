@@ -101,6 +101,9 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
         rolesAuthority.setRoleCapability(
             CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.redeemSolve.selector, true
         );
+        rolesAuthority.setRoleCapability(
+            MINTER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true
+        );
 
         rolesAuthority.setPublicCapability(address(teller), TellerWithMultiAssetSupport.deposit.selector, true);
         rolesAuthority.setPublicCapability(
