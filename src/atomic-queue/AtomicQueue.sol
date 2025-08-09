@@ -73,6 +73,7 @@ contract AtomicQueue is ReentrancyGuard {
     error AtomicQueue__RequestDeadlineExceeded(address user);
     error AtomicQueue__UserNotInSolve(address user);
     error AtomicQueue__ZeroOfferAmount(address user);
+    error AtomicQueue__OnlyCallableInternally();
 
     //============================== EVENTS ===============================
 
@@ -225,12 +226,10 @@ contract AtomicQueue is ReentrancyGuard {
                 continue;
             }
 
-            try offer.transferFrom(users[i], solver, request.offerAmount) returns (bool success) {
-                if (success) {
-                    assetsForWant += rate.mulDivDown(request.offerAmount, offerDecimals);
-                    assetsToOffer += request.offerAmount;
-                    request.inSolve = true;
-                }
+            try this.attemptTransfer(offer, users[i], solver, request.offerAmount) {
+                assetsForWant += rate.mulDivDown(request.offerAmount, offerDecimals);
+                assetsToOffer += request.offerAmount;
+                request.inSolve = true;
             } catch {
                 continue;
             }
@@ -320,5 +319,18 @@ contract AtomicQueue is ReentrancyGuard {
                 totalAssetsToOffer += request.offerAmount;
             }
         }
+    }
+
+    /**
+     * @notice External helper function to enable try-catch with safeTransferFrom
+     * @dev Only callable by this contract itself
+     * @param token The ERC20 token to transfer
+     * @param from The address to transfer from
+     * @param to The address to transfer to
+     * @param amount The amount to transfer
+     */
+    function attemptTransfer(ERC20 token, address from, address to, uint256 amount) external {
+        if (msg.sender != address(this)) revert AtomicQueue__OnlyCallableInternally();
+        token.safeTransferFrom(from, to, amount);
     }
 }

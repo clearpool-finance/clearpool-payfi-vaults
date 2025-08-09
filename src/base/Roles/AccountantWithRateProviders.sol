@@ -90,6 +90,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     error AccountantWithRateProviders__ZeroFeesOwed();
     error AccountantWithRateProviders__OnlyCallableByBoringVault();
     error AccountantWithRateProviders__UpdateDelayTooLarge();
+    error AccountantWithRateProviders__UpperMustExceedLower();
 
     //============================== EVENTS ===============================
 
@@ -203,9 +204,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Callable by OWNER_ROLE.
      */
     function updateUpper(uint16 _allowedExchangeRateChangeUpper) external requiresAuth {
-        require(
-            _allowedExchangeRateChangeUpper > accountantState._allowedExchangeRateChangeLower, "Upper must exceed lower"
-        );
+        if (_allowedExchangeRateChangeUpper <= accountantState._allowedExchangeRateChangeLower) {
+            revert AccountantWithRateProviders__UpperMustExceedLower();
+        }
         if (_allowedExchangeRateChangeUpper < BASIS_POINTS) revert AccountantWithRateProviders__UpperBoundTooSmall();
         uint16 oldBound = accountantState._allowedExchangeRateChangeUpper;
         accountantState._allowedExchangeRateChangeUpper = _allowedExchangeRateChangeUpper;
@@ -217,10 +218,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Callable by OWNER_ROLE.
      */
     function updateLower(uint16 _allowedExchangeRateChangeLower) external requiresAuth {
-        require(
-            _allowedExchangeRateChangeLower < accountantState._allowedExchangeRateChangeUpper,
-            "Lower must be below upper"
-        );
+        if (_allowedExchangeRateChangeLower >= accountantState._allowedExchangeRateChangeUpper) {
+            revert AccountantWithRateProviders__UpperMustExceedLower();
+        }
         if (_allowedExchangeRateChangeLower > BASIS_POINTS) revert AccountantWithRateProviders__LowerBoundTooLarge();
         uint16 oldBound = accountantState._allowedExchangeRateChangeLower;
         accountantState._allowedExchangeRateChangeLower = _allowedExchangeRateChangeLower;
@@ -513,6 +513,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
                 accountantState._feesOwedInBase += uint128(managementFees);
             }
             lendingInfo._lastAccrualTime = block.timestamp;
+            emit Checkpoint(block.timestamp);
         }
     }
 
@@ -525,7 +526,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     function checkpoint() external requiresAuth {
         require(!accountantState._isPaused, "Cannot checkpoint when paused");
         _checkpointInterestAndFees();
-        emit Checkpoint(block.timestamp);
     }
 
     /**
