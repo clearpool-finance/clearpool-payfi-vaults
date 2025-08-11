@@ -171,7 +171,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Pausing only prevents state changes, not time-based calculations
      * @dev Callable by MULTISIG_ROLE.
      */
-    function pause() external requiresAuth {
+    function pause() public requiresAuth {
         accountantState._isPaused = true;
         emit Paused();
     }
@@ -278,8 +278,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
                 || _newExchangeRate
                     < uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeLower, BASIS_POINTS)
         ) {
-            // Instead of reverting, pause the contract
-            state._isPaused = true;
+            pause();
         }
 
         // Always update the rate and timestamp
