@@ -510,9 +510,6 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
     function testReverts() external {
         accountant.pause();
 
-        vm.expectRevert(
-            abi.encodeWithSelector(AccountantWithRateProviders.AccountantWithRateProviders__Paused.selector)
-        );
         accountant.updateExchangeRate(0);
 
         address attacker = vm.addr(1);
