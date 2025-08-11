@@ -261,7 +261,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      */
     function updateExchangeRate(uint96 _newExchangeRate) external requiresAuth {
         AccountantState storage state = accountantState;
-        if (state._isPaused) revert AccountantWithRateProviders__Paused();
 
         uint64 currentTime = uint64(block.timestamp);
         (uint96 currentRateWithInterest,) = calculateExchangeRateWithInterest();
