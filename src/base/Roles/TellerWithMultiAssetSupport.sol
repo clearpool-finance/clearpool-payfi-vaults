@@ -142,6 +142,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     event KeyringConfigUpdated(address keyringContract, uint256 policyId);
     event ManualWhitelistUpdated(address indexed account, bool status);
     event ContractWhitelistUpdated(address indexed account, bool status);
+    event ShareLockPeriodUpdated(uint64 oldPeriod, uint64 newPeriod);
 
     //============================== IMMUTABLES ===============================
 
@@ -245,7 +246,11 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      */
     function setShareLockPeriod(uint64 _shareLockPeriod) external requiresAuth {
         if (_shareLockPeriod > MAX_SHARE_LOCK_PERIOD) revert TellerWithMultiAssetSupport__ShareLockPeriodTooLong();
+
+        uint64 oldPeriod = shareLockPeriod;
         shareLockPeriod = _shareLockPeriod;
+
+        emit ShareLockPeriodUpdated(oldPeriod, _shareLockPeriod);
     }
 
     /**
