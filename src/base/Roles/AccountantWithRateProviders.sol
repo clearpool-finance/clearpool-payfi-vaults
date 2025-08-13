@@ -527,6 +527,96 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     }
 
     /**
+     * @notice Calculate shares for a given asset amount maintaining full precision
+     * @dev This avoids precision loss from rate decimal conversion
+     * @param asset The ERC20 asset being deposited
+     * @param assetAmount The amount of asset to convert to shares
+     * @return shares The amount of shares to mint
+     */
+    function calculateSharesForAmount(ERC20 asset, uint256 assetAmount) external view returns (uint256 shares) {
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
+        // if asset is the vault shares, return as-is
+        if (address(asset) == address(vault)) {
+            return assetAmount;
+        }
+
+        // Get current rate with interest in base decimals (18)
+        (uint96 currentRate,) = calculateExchangeRateWithInterest();
+
+        // Convert asset amount to base value
+        uint256 baseValue;
+
+        if (address(asset) == address(base)) {
+            // Asset is base, just scale decimals
+            baseValue = assetAmount;
+        } else {
+            RateProviderData memory data = rateProviderData[asset];
+            uint8 assetDecimals = asset.decimals();
+
+            if (data.isPeggedToBase) {
+                // Pegged asset - just scale decimals
+                if (assetDecimals < 18) {
+                    baseValue = assetAmount * 10 ** (18 - assetDecimals);
+                } else if (assetDecimals > 18) {
+                    baseValue = assetAmount / 10 ** (assetDecimals - 18);
+                } else {
+                    baseValue = assetAmount;
+                }
+            } else {
+                // Non-pegged asset - convert using rate provider
+                uint256 assetRate = data.rateProvider.getRate();
+                baseValue = assetAmount.mulDivDown(assetRate, 10 ** assetDecimals);
+            }
+        }
+
+        // Calculate shares using base value
+        shares = baseValue.mulDivDown(ONE_SHARE, currentRate);
+    }
+
+    /**
+     * @notice Calculate asset amount for given shares maintaining full precision
+     * @dev This avoids precision loss from rate decimal conversion
+     * @param asset The ERC20 asset to withdraw
+     * @param shareAmount The amount of shares to burn
+     * @return assetAmount The amount of asset to receive
+     */
+    function calculateAmountForShares(ERC20 asset, uint256 shareAmount) external view returns (uint256 assetAmount) {
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
+        if (address(asset) == address(vault)) {
+            return shareAmount;
+        }
+
+        // Get current rate with interest in base decimals (18)
+        (uint96 currentRate,) = calculateExchangeRateWithInterest();
+
+        // Calculate base value for shares
+        uint256 baseValue = shareAmount.mulDivDown(currentRate, ONE_SHARE);
+
+        // Convert base value to asset amount
+        if (address(asset) == address(base)) {
+            assetAmount = baseValue;
+        } else {
+            RateProviderData memory data = rateProviderData[asset];
+            uint8 assetDecimals = asset.decimals();
+
+            if (data.isPeggedToBase) {
+                // Pegged asset - just scale decimals
+                if (assetDecimals < 18) {
+                    assetAmount = baseValue / 10 ** (18 - assetDecimals);
+                } else if (assetDecimals > 18) {
+                    assetAmount = baseValue * 10 ** (assetDecimals - 18);
+                } else {
+                    assetAmount = baseValue;
+                }
+            } else {
+                // Non-pegged asset - convert using rate provider
+                uint256 assetRate = data.rateProvider.getRate();
+                assetAmount = baseValue.mulDivDown(10 ** assetDecimals, assetRate);
+            }
+        }
+    }
+
+    /**
      * @notice Used to change the decimals of precision used for an amount.
      */
     function _changeDecimals(uint256 _amount, uint8 _fromDecimals, uint8 _toDecimals) internal pure returns (uint256) {
