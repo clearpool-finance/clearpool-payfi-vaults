@@ -455,7 +455,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
         accountant.checkpoint();
 
-        assetsOut = _shareAmount.mulDivDown(accountant.getRateInQuoteSafe(_withdrawAsset), ONE_SHARE);
+        assetsOut = accountant.calculateAmountForShares(_withdrawAsset, _shareAmount);
         if (assetsOut < _minimumAssets) revert TellerWithMultiAssetSupport__MinimumAssetsNotMet();
         vault.exit(_to, _withdrawAsset, assetsOut, msg.sender, _shareAmount);
         emit BulkWithdraw(address(_withdrawAsset), _shareAmount);
@@ -480,7 +480,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         accountant.checkpoint();
 
         // Calculate shares to mint
-        shares = _depositAmount.mulDivDown(ONE_SHARE, accountant.getRateInQuoteSafe(_depositAsset));
+        shares = accountant.calculateSharesForAmount(_depositAsset, _depositAmount);
         if (shares < _minimumMint) revert TellerWithMultiAssetSupport__MinimumMintNotMet();
 
         uint256 shareValueInBase = shares.mulDivDown(

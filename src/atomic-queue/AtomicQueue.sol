@@ -218,9 +218,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         internal
         returns (uint256 assetsToOffer, uint256 assetsForWant)
     {
-        uint256 rate = accountant.getRateInQuoteSafe(want);
-        uint256 offerDecimals = 10 ** offer.decimals();
-
         for (uint256 i; i < users.length; ++i) {
             AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
 
@@ -229,7 +226,10 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             }
 
             try this.attemptTransfer(offer, users[i], solver, request.offerAmount) {
-                assetsForWant += rate.mulDivDown(request.offerAmount, offerDecimals);
+                uint256 shares = accountant.calculateSharesForAmount(offer, request.offerAmount);
+                uint256 wantAmount = accountant.calculateAmountForShares(want, shares);
+                assetsForWant += wantAmount;
+
                 assetsToOffer += request.offerAmount;
                 request.inSolve = true;
             } catch {
@@ -248,14 +248,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param solver the solver address providing want tokens
      */
     function _finalizeSolve(ERC20 offer, ERC20 want, address[] calldata users, address solver) internal {
-        uint256 rate = accountant.getRateInQuoteSafe(want);
-        uint256 offerDecimals = 10 ** offer.decimals();
-
         for (uint256 i; i < users.length; ++i) {
             AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
 
             if (request.inSolve) {
-                uint256 amountOut = rate.mulDivDown(request.offerAmount, offerDecimals);
+                uint256 shares = accountant.calculateSharesForAmount(offer, request.offerAmount);
+                uint256 amountOut = accountant.calculateAmountForShares(want, shares);
 
                 want.safeTransferFrom(solver, users[i], amountOut);
 
@@ -291,8 +289,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         returns (SolveMetaData[] memory metaData, uint256 totalAssetsForWant, uint256 totalAssetsToOffer)
     {
         metaData = new SolveMetaData[](users.length);
-        uint256 rate = accountant.getRateInQuoteSafe(want);
-        uint256 offerDecimalsPow = 10 ** offer.decimals();
 
         for (uint256 i; i < users.length; ++i) {
             AtomicRequest memory request = userAtomicRequest[users[i]][offer][want];
@@ -312,7 +308,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             }
 
             metaData[i].assetsToOffer = request.offerAmount;
-            metaData[i].assetsForWant = rate.mulDivDown(request.offerAmount, offerDecimalsPow);
+
+            if (request.offerAmount > 0) {
+                uint256 shares = accountant.calculateSharesForAmount(offer, request.offerAmount);
+                metaData[i].assetsForWant = accountant.calculateAmountForShares(want, shares);
+            }
 
             if (metaData[i].flags == 0) {
                 totalAssetsForWant += metaData[i].assetsForWant;
