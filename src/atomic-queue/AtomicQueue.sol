@@ -8,6 +8,7 @@ import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
 import { IAtomicSolver } from "./IAtomicSolver.sol";
 import { AccountantWithRateProviders } from "../base/Roles/AccountantWithRateProviders.sol";
 import { Auth, Authority } from "@solmate/auth/Auth.sol";
+import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 
 /**
  * @title AtomicQueue
@@ -226,10 +227,22 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             }
 
             try this.attemptTransfer(offer, users[i], solver, request.offerAmount) {
-                uint256 shares = accountant.calculateSharesForAmount(offer, request.offerAmount);
-                uint256 wantAmount = accountant.calculateAmountForShares(want, shares);
-                assetsForWant += wantAmount;
+                uint256 wantAmount;
 
+                // Special handling for vault shares
+                if (address(offer) == address(accountant.vault())) {
+                    // Withdrawing: vault shares -> asset
+                    wantAmount = _calculateWithdrawAmount(want, request.offerAmount);
+                } else if (address(want) == address(accountant.vault())) {
+                    // Depositing: asset -> vault shares
+                    wantAmount = _calculateDepositShares(offer, request.offerAmount);
+                } else {
+                    // Swap: asset -> asset (through value)
+                    uint256 valueIn18 = _convertAssetToValue18(offer, request.offerAmount);
+                    wantAmount = _convertValue18ToAsset(want, valueIn18);
+                }
+
+                assetsForWant += wantAmount;
                 assetsToOffer += request.offerAmount;
                 request.inSolve = true;
             } catch {
@@ -238,22 +251,22 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         }
     }
 
-    /**
-     * @notice Internal function to handle final phase of solve
-     * @dev Transfers want tokens from solver to users and cleans up state
-     * @dev Uses same NAV rate for all calculations to ensure consistency
-     * @param offer the ERC20 offer token
-     * @param want the ERC20 want token
-     * @param users array of users to process
-     * @param solver the solver address providing want tokens
-     */
     function _finalizeSolve(ERC20 offer, ERC20 want, address[] calldata users, address solver) internal {
         for (uint256 i; i < users.length; ++i) {
             AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
 
             if (request.inSolve) {
-                uint256 shares = accountant.calculateSharesForAmount(offer, request.offerAmount);
-                uint256 amountOut = accountant.calculateAmountForShares(want, shares);
+                uint256 amountOut;
+
+                // Same logic as _prepareSolve
+                if (address(offer) == address(accountant.vault())) {
+                    amountOut = _calculateWithdrawAmount(want, request.offerAmount);
+                } else if (address(want) == address(accountant.vault())) {
+                    amountOut = _calculateDepositShares(offer, request.offerAmount);
+                } else {
+                    uint256 valueIn18 = _convertAssetToValue18(offer, request.offerAmount);
+                    amountOut = _convertValue18ToAsset(want, valueIn18);
+                }
 
                 want.safeTransferFrom(solver, users[i], amountOut);
 
@@ -310,8 +323,15 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             metaData[i].assetsToOffer = request.offerAmount;
 
             if (request.offerAmount > 0) {
-                uint256 shares = accountant.calculateSharesForAmount(offer, request.offerAmount);
-                metaData[i].assetsForWant = accountant.calculateAmountForShares(want, shares);
+                // Calculate want amount using same logic as _prepareSolve
+                if (address(offer) == address(accountant.vault())) {
+                    metaData[i].assetsForWant = _calculateWithdrawAmount(want, request.offerAmount);
+                } else if (address(want) == address(accountant.vault())) {
+                    metaData[i].assetsForWant = _calculateDepositShares(offer, request.offerAmount);
+                } else {
+                    uint256 valueIn18 = _convertAssetToValue18(offer, request.offerAmount);
+                    metaData[i].assetsForWant = _convertValue18ToAsset(want, valueIn18);
+                }
             }
 
             if (metaData[i].flags == 0) {
@@ -332,5 +352,71 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     function attemptTransfer(ERC20 token, address from, address to, uint256 amount) external {
         if (msg.sender != address(this)) revert AtomicQueue__OnlyCallableInternally();
         token.safeTransferFrom(from, to, amount);
+    }
+
+    /**
+     * @notice Convert asset amount to 18 decimal value
+     */
+    function _convertAssetToValue18(ERC20 asset, uint256 amount) internal view returns (uint256) {
+        if (address(asset) == address(accountant.base())) {
+            return _changeDecimals(amount, accountant.decimals(), 18);
+        }
+
+        (bool isPegged,) = accountant.rateProviderData(asset);
+        if (isPegged) {
+            return _changeDecimals(amount, asset.decimals(), 18);
+        } else {
+            (, IRateProvider rateProvider) = accountant.rateProviderData(asset);
+            uint256 rate = rateProvider.getRate();
+            return amount.mulDivDown(rate, 10 ** asset.decimals());
+        }
+    }
+
+    /**
+     * @notice Convert 18 decimal value to asset amount
+     */
+    function _convertValue18ToAsset(ERC20 asset, uint256 valueIn18) internal view returns (uint256) {
+        if (address(asset) == address(accountant.base())) {
+            return _changeDecimals(valueIn18, 18, accountant.decimals());
+        }
+
+        (bool isPegged,) = accountant.rateProviderData(asset);
+        if (isPegged) {
+            return _changeDecimals(valueIn18, 18, asset.decimals());
+        } else {
+            (, IRateProvider rateProvider) = accountant.rateProviderData(asset);
+            uint256 rate = rateProvider.getRate();
+            return valueIn18.mulDivDown(10 ** asset.decimals(), rate);
+        }
+    }
+
+    /**
+     * @notice Calculate deposit shares for an asset amount
+     */
+    function _calculateDepositShares(ERC20 asset, uint256 amount) internal view returns (uint256) {
+        uint256 rate = accountant.getRate();
+        uint256 valueIn18 = _convertAssetToValue18(asset, amount);
+        return valueIn18.mulDivDown(1e18, rate);
+    }
+
+    /**
+     * @notice Calculate withdraw amount for vault shares
+     */
+    function _calculateWithdrawAmount(ERC20 asset, uint256 shares) internal view returns (uint256) {
+        uint256 rate = accountant.getRate();
+        uint256 valueIn18 = shares.mulDivDown(rate, 1e18);
+        return _convertValue18ToAsset(asset, valueIn18);
+    }
+
+    /**
+     * @notice Helper to change decimals
+     */
+    function _changeDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
+        if (fromDecimals == toDecimals) return amount;
+        if (fromDecimals < toDecimals) {
+            return amount * 10 ** (toDecimals - fromDecimals);
+        } else {
+            return amount / 10 ** (fromDecimals - toDecimals);
+        }
     }
 }

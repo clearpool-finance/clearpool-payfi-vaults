@@ -11,6 +11,7 @@ import { BeforeTransferHook } from "src/interfaces/BeforeTransferHook.sol";
 import { Auth, Authority } from "@solmate/auth/Auth.sol";
 import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
 import { IKeyring } from "src/interfaces/IKeyring.sol";
+import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 
 /**
  * @title TellerWithMultiAssetSupport
@@ -455,8 +456,32 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
         accountant.checkpoint();
 
-        assetsOut = accountant.calculateAmountForShares(_withdrawAsset, _shareAmount);
+        // Get exchange rate in 18 decimals
+        uint256 rate = accountant.getRate();
+
+        // Calculate value in 18 decimals
+        uint256 withdrawValueIn18 = _shareAmount.mulDivDown(rate, ONE_SHARE);
+
+        // Convert to asset amount based on asset type
+        if (address(_withdrawAsset) == address(accountant.base())) {
+            // Base asset - convert from 18 to base decimals
+            assetsOut = _changeDecimals(withdrawValueIn18, 18, accountant.decimals());
+        } else {
+            (bool isPegged,) = accountant.rateProviderData(_withdrawAsset);
+
+            if (isPegged) {
+                // Pegged asset - convert from 18 to asset decimals
+                assetsOut = _changeDecimals(withdrawValueIn18, 18, _withdrawAsset.decimals());
+            } else {
+                // Non-pegged asset - use rate provider
+                (, IRateProvider rateProvider) = accountant.rateProviderData(_withdrawAsset);
+                uint256 assetRate = rateProvider.getRate();
+                assetsOut = withdrawValueIn18.mulDivDown(10 ** _withdrawAsset.decimals(), assetRate);
+            }
+        }
+
         if (assetsOut < _minimumAssets) revert TellerWithMultiAssetSupport__MinimumAssetsNotMet();
+
         vault.exit(_to, _withdrawAsset, assetsOut, msg.sender, _shareAmount);
         emit BulkWithdraw(address(_withdrawAsset), _shareAmount);
     }
@@ -479,15 +504,40 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
         accountant.checkpoint();
 
-        // Calculate shares to mint
-        shares = accountant.calculateSharesForAmount(_depositAsset, _depositAmount);
+        // Get exchange rate in 18 decimals
+        uint256 rate = accountant.getRate();
+
+        // Convert deposit amount to 18 decimal value based on asset type
+        uint256 depositValueIn18;
+
+        if (address(_depositAsset) == address(accountant.base())) {
+            // Base asset - convert to 18 decimals
+            depositValueIn18 = _changeDecimals(_depositAmount, accountant.decimals(), 18);
+        } else {
+            (bool isPegged,) = accountant.rateProviderData(_depositAsset);
+
+            if (isPegged) {
+                // Pegged asset - convert to 18 decimals (1:1 with base)
+                depositValueIn18 = _changeDecimals(_depositAmount, _depositAsset.decimals(), 18);
+            } else {
+                // Non-pegged asset - use rate provider
+                (, IRateProvider rateProvider) = accountant.rateProviderData(_depositAsset);
+                uint256 assetRate = rateProvider.getRate();
+                depositValueIn18 = _depositAmount.mulDivDown(assetRate, 10 ** _depositAsset.decimals());
+            }
+        }
+
+        // Calculate shares using 18 decimal values
+        shares = depositValueIn18.mulDivDown(ONE_SHARE, rate);
+
         if (shares < _minimumMint) revert TellerWithMultiAssetSupport__MinimumMintNotMet();
 
-        uint256 shareValueInBase = shares.mulDivDown(
-            accountant.getRate(), // Exchange rate in base
-            ONE_SHARE
-        );
-        uint256 currentTotalValue = vault.totalSupply().mulDivDown(accountant.getRate(), ONE_SHARE);
+        uint256 shareValueInBase = shares.mulDivDown(rate, ONE_SHARE);
+        // Convert to base decimals for cap check
+        shareValueInBase = _changeDecimals(shareValueInBase, 18, accountant.decimals());
+        uint256 currentTotalValue = vault.totalSupply().mulDivDown(rate, ONE_SHARE);
+        currentTotalValue = _changeDecimals(currentTotalValue, 18, accountant.decimals());
+
         require(currentTotalValue + shareValueInBase <= depositCap, "Deposit cap exceeded");
 
         vault.enter(msg.sender, _depositAsset, _depositAmount, _to, shares);
@@ -515,5 +565,17 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         emit Deposit(
             nonce, _user, address(_depositAsset), _depositAmount, _shares, block.timestamp, _currentShareLockPeriod
         );
+    }
+
+    /**
+     * @notice Internal helper to change decimals
+     */
+    function _changeDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
+        if (fromDecimals == toDecimals) return amount;
+        if (fromDecimals < toDecimals) {
+            return amount * 10 ** (toDecimals - fromDecimals);
+        } else {
+            return amount / 10 ** (fromDecimals - toDecimals);
+        }
     }
 }
