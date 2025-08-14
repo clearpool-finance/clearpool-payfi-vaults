@@ -396,18 +396,20 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         view
         returns (uint256 wantAmount)
     {
-        uint256 rate = accountant.getRate();
+        uint256 rate = accountant.getRate(); // Rate is in 18 decimals
 
         if (address(offer) == address(accountant.vault())) {
             // Withdrawing: vault shares -> asset
-            // shares * rate / 1e18 = valueIn18, then convert to asset
-            uint256 valueIn18 = offerAmount.mulDivDown(rate, 1e18);
+            uint8 vaultDecimals = ERC20(address(offer)).decimals(); 
+            uint256 sharesIn18 = _changeDecimals(offerAmount, vaultDecimals, 18);
+            uint256 valueIn18 = sharesIn18.mulDivDown(rate, 1e18);
             wantAmount = _convertValue18ToAsset(want, valueIn18);
         } else if (address(want) == address(accountant.vault())) {
             // Depositing: asset -> vault shares
-            // asset -> valueIn18, then valueIn18 * 1e18 / rate = shares
+            uint8 vaultDecimals = ERC20(address(want)).decimals(); 
             uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
-            wantAmount = valueIn18.mulDivDown(1e18, rate);
+            uint256 sharesIn18 = valueIn18.mulDivDown(1e18, rate);
+            wantAmount = _changeDecimals(sharesIn18, 18, vaultDecimals);
         } else {
             // Swap: asset -> asset (through value)
             uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
