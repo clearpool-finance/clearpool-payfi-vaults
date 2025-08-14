@@ -239,9 +239,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
     /**
      * @notice Update the rate provider data for a specific `asset`.
-     * @dev Rate providers must return rates in terms of `base` or
-     * an asset pegged to base and they must use the same decimals
-     * as `asset`.
+     * @dev Rate providers must return rates in terms of `base`
+     * @dev Rate providers MUST ALWAYS return rates in 18 decimals regardless of asset decimals
+     * @dev The rate should represent how much base value 1 unit of asset is worth
      * @dev Callable by OWNER_ROLE.
      */
     function setRateProviderData(ERC20 _asset, bool _isPeggedToBase, address _rateProvider) external requiresAuth {
@@ -400,7 +400,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         if (lendingInfo._lendingRate > 0) {
             uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
 
-            // always update the rate (even when TVL = 0)
+            // Calculate rate increase in 18 decimals
             uint256 rateIncrease = uint256(accountantState._exchangeRate).mulDivDown(
                 lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
             );
@@ -408,7 +408,10 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
             // Interest accrued is only for actual deposits
             if (vault.totalSupply() > 0) {
-                uint256 totalDeposits = vault.totalSupply().mulDivDown(accountantState._exchangeRate, ONE_SHARE);
+                // Calculate in 18 decimals, then convert to base decimals
+                uint256 totalDepositsIn18 = vault.totalSupply().mulDivDown(newRate, ONE_SHARE);
+                uint256 totalDeposits = _changeDecimals(totalDepositsIn18, 18, decimals);
+
                 interestAccrued =
                     totalDeposits.mulDivDown(lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
             }
@@ -432,21 +435,25 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      *      decimals is greater than the _quote's decimals.
      */
     function getRateInQuote(ERC20 _quote) public view returns (uint256 rateInQuote) {
-        // Get real-time rate first
+        // Get real-time rate in 18 decimals
         (uint96 currentRate,) = calculateExchangeRateWithInterest();
 
         if (address(_quote) == address(base)) {
-            rateInQuote = currentRate;
+            // Convert from 18 decimals to base decimals for display
+            rateInQuote = _changeDecimals(currentRate, 18, decimals);
         } else {
             RateProviderData memory data = rateProviderData[_quote];
             uint8 quoteDecimals = ERC20(_quote).decimals();
-            uint256 exchangeRateInQuoteDecimals = _changeDecimals(currentRate, decimals, quoteDecimals);
+
             if (data.isPeggedToBase) {
-                rateInQuote = exchangeRateInQuoteDecimals;
+                // Convert from 18 decimals to quote decimals
+                rateInQuote = _changeDecimals(currentRate, 18, quoteDecimals);
             } else {
+                // Rate provider should return 18 decimals
                 uint256 quoteRate = data.rateProvider.getRate();
-                uint256 oneQuote = 10 ** quoteDecimals;
-                rateInQuote = oneQuote.mulDivDown(exchangeRateInQuoteDecimals, quoteRate);
+                // Calculate: currentRate * 1e18 / quoteRate, then scale to quote decimals
+                uint256 rateInQuote18 = uint256(currentRate).mulDivDown(1e18, quoteRate);
+                rateInQuote = _changeDecimals(rateInQuote18, 18, quoteDecimals);
             }
         }
     }
@@ -482,9 +489,10 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         if (vault.totalSupply() > 0 && accountantState._managementFee > 0) {
             uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
 
-            // Use current rate including interest
             (uint96 currentRate,) = calculateExchangeRateWithInterest();
-            uint256 totalDeposits = vault.totalSupply().mulDivDown(currentRate, ONE_SHARE);
+            uint256 totalDepositsIn18 = vault.totalSupply().mulDivDown(currentRate, ONE_SHARE);
+            // Convert to base decimals for fee calculation
+            uint256 totalDeposits = _changeDecimals(totalDepositsIn18, 18, decimals);
 
             uint256 managementFees =
                 totalDeposits.mulDivDown(accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
@@ -505,7 +513,10 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
             // Only calculate management fees when there are actual deposits
             if (vault.totalSupply() > 0 && accountantState._managementFee > 0) {
-                uint256 totalValue = vault.totalSupply().mulDivDown(newRate, ONE_SHARE);
+                // Calculate value in 18 decimals, then convert to base decimals for fee storage
+                uint256 totalValueIn18 = vault.totalSupply().mulDivDown(newRate, ONE_SHARE);
+                uint256 totalValue = _changeDecimals(totalValueIn18, 18, decimals);
+
                 uint256 managementFees =
                     totalValue.mulDivDown(accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
                 accountantState._feesOwedInBase += uint128(managementFees);
@@ -524,96 +535,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     function checkpoint() external requiresAuth {
         require(!accountantState._isPaused, "Cannot checkpoint when paused");
         _checkpointInterestAndFees();
-    }
-
-    /**
-     * @notice Calculate shares for a given asset amount maintaining full precision
-     * @dev This avoids precision loss from rate decimal conversion
-     * @param asset The ERC20 asset being deposited
-     * @param assetAmount The amount of asset to convert to shares
-     * @return shares The amount of shares to mint
-     */
-    function calculateSharesForAmount(ERC20 asset, uint256 assetAmount) external view returns (uint256 shares) {
-        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
-        // if asset is the vault shares, return as-is
-        if (address(asset) == address(vault)) {
-            return assetAmount;
-        }
-
-        // Get current rate with interest in base decimals (18)
-        (uint96 currentRate,) = calculateExchangeRateWithInterest();
-
-        // Convert asset amount to base value
-        uint256 baseValue;
-
-        if (address(asset) == address(base)) {
-            // Asset is base, just scale decimals
-            baseValue = assetAmount;
-        } else {
-            RateProviderData memory data = rateProviderData[asset];
-            uint8 assetDecimals = asset.decimals();
-
-            if (data.isPeggedToBase) {
-                // Pegged asset - just scale decimals
-                if (assetDecimals < 18) {
-                    baseValue = assetAmount * 10 ** (18 - assetDecimals);
-                } else if (assetDecimals > 18) {
-                    baseValue = assetAmount / 10 ** (assetDecimals - 18);
-                } else {
-                    baseValue = assetAmount;
-                }
-            } else {
-                // Non-pegged asset - convert using rate provider
-                uint256 assetRate = data.rateProvider.getRate();
-                baseValue = assetAmount.mulDivDown(assetRate, 10 ** assetDecimals);
-            }
-        }
-
-        // Calculate shares using base value
-        shares = baseValue.mulDivDown(ONE_SHARE, currentRate);
-    }
-
-    /**
-     * @notice Calculate asset amount for given shares maintaining full precision
-     * @dev This avoids precision loss from rate decimal conversion
-     * @param asset The ERC20 asset to withdraw
-     * @param shareAmount The amount of shares to burn
-     * @return assetAmount The amount of asset to receive
-     */
-    function calculateAmountForShares(ERC20 asset, uint256 shareAmount) external view returns (uint256 assetAmount) {
-        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
-        if (address(asset) == address(vault)) {
-            return shareAmount;
-        }
-
-        // Get current rate with interest in base decimals (18)
-        (uint96 currentRate,) = calculateExchangeRateWithInterest();
-
-        // Calculate base value for shares
-        uint256 baseValue = shareAmount.mulDivDown(currentRate, ONE_SHARE);
-
-        // Convert base value to asset amount
-        if (address(asset) == address(base)) {
-            assetAmount = baseValue;
-        } else {
-            RateProviderData memory data = rateProviderData[asset];
-            uint8 assetDecimals = asset.decimals();
-
-            if (data.isPeggedToBase) {
-                // Pegged asset - just scale decimals
-                if (assetDecimals < 18) {
-                    assetAmount = baseValue / 10 ** (18 - assetDecimals);
-                } else if (assetDecimals > 18) {
-                    assetAmount = baseValue * 10 ** (assetDecimals - 18);
-                } else {
-                    assetAmount = baseValue;
-                }
-            } else {
-                // Non-pegged asset - convert using rate provider
-                uint256 assetRate = data.rateProvider.getRate();
-                assetAmount = baseValue.mulDivDown(10 ** assetDecimals, assetRate);
-            }
-        }
     }
 
     /**
