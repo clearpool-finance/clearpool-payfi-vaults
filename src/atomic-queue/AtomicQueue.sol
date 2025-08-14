@@ -400,13 +400,13 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
         if (address(offer) == address(accountant.vault())) {
             // Withdrawing: vault shares -> asset
-            uint8 vaultDecimals = ERC20(address(offer)).decimals(); 
+            uint8 vaultDecimals = ERC20(address(offer)).decimals();
             uint256 sharesIn18 = _changeDecimals(offerAmount, vaultDecimals, 18);
             uint256 valueIn18 = sharesIn18.mulDivDown(rate, 1e18);
             wantAmount = _convertValue18ToAsset(want, valueIn18);
         } else if (address(want) == address(accountant.vault())) {
             // Depositing: asset -> vault shares
-            uint8 vaultDecimals = ERC20(address(want)).decimals(); 
+            uint8 vaultDecimals = ERC20(address(want)).decimals();
             uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
             uint256 sharesIn18 = valueIn18.mulDivDown(1e18, rate);
             wantAmount = _changeDecimals(sharesIn18, 18, vaultDecimals);
