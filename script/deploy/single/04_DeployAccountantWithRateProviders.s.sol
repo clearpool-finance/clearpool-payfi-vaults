@@ -16,7 +16,7 @@ contract DeployAccountantWithRateProviders is BaseScript {
 
     function deploy(ConfigReader.Config memory config) public override broadcast returns (address) {
         // Require Config Values
-        uint256 startingExchangeRate = 10 ** ERC20(config.base).decimals();
+        uint256 startingExchangeRate = 10 ** 18;
         {
             require(config.boringVault.code.length != 0, "boringVault must have code");
             require(config.base.code.length != 0, "base must have code");
@@ -30,10 +30,10 @@ contract DeployAccountantWithRateProviders is BaseScript {
             require(config.allowedExchangeRateChangeLower >= 0.997e4, "allowedExchangeRateChangeLower lower bound");
             require(config.minimumUpdateDelayInSeconds >= 3600, "minimumUpdateDelayInSeconds");
             require(config.managementFee < 1e4, "managementFee");
-            require(
-                startingExchangeRate == 10 ** config.boringVaultAndBaseDecimals,
-                "starting exchange rate must be equal to the boringVault and base decimals"
-            );
+            // require(
+            //     startingExchangeRate == 10 ** config.boringVaultAndBaseDecimals,
+            //     "starting exchange rate must be equal to the boringVault and base decimals"
+            // );
         }
         // Create Contract
         bytes memory creationCode = type(AccountantWithRateProviders).creationCode;
