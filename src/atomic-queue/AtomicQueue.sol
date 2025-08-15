@@ -71,9 +71,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     mapping(address => mapping(ERC20 => mapping(ERC20 => AtomicRequest))) public userAtomicRequest;
 
     //============================== ERRORS ===============================
-    error AtomicQueue__OnlyCallableInternally();
-    error AtomicQueue__NoValidRequests();
-    error AtomicQueue__NoOutputExpected();
     error AtomicQueue__ZeroOutputAmount();
 
     //============================== EVENTS ===============================
@@ -116,8 +113,8 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param offer the ERC20 token they want to exchange for the want
      * @param want the ERC20 token they want in exchange for the offer
      */
-    function getUserAtomicRequest(address user, ERC20 offer, ERC20 want) external view returns (AtomicRequest memory) {
-        return userAtomicRequest[user][offer][want];
+    function getUserAtomicRequest(address _user, ERC20 _offer, ERC20 _want) external view returns (AtomicRequest memory) {
+        return userAtomicRequest[_user][_offer][_want];
     }
 
     /**
@@ -132,18 +129,18 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param userRequest the request struct to validate
      */
     function isAtomicRequestValid(
-        ERC20 offer,
-        address user,
-        AtomicRequest calldata userRequest
+        ERC20 _offer,
+        address _user,
+        AtomicRequest calldata _userRequest
     )
         external
         view
         returns (bool)
     {
-        if (userRequest.offerAmount > offer.balanceOf(user)) return false;
-        if (block.timestamp > userRequest.deadline) return false;
-        if (offer.allowance(user, address(this)) < userRequest.offerAmount) return false;
-        if (userRequest.offerAmount == 0) return false;
+        if (_userRequest.offerAmount > _offer.balanceOf(_user)) return false;
+        if (block.timestamp > _userRequest.deadline) return false;
+        if (_offer.allowance(_user, address(this)) < _userRequest.offerAmount) return false;
+        if (_userRequest.offerAmount == 0) return false;
 
         return true;
     }
@@ -155,13 +152,13 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param deadline unix timestamp for when request is no longer valid
      * @param offerAmount the amount of offer asset to exchange
      */
-    function updateAtomicRequest(ERC20 offer, ERC20 want, uint64 deadline, uint96 offerAmount) external nonReentrant {
-        AtomicRequest storage request = userAtomicRequest[msg.sender][offer][want];
+    function updateAtomicRequest(ERC20 _offer, ERC20 _want, uint64 _deadline, uint96 _offerAmount) external nonReentrant {
+        AtomicRequest storage request = userAtomicRequest[msg.sender][_offer][_want];
 
-        request.deadline = deadline;
-        request.offerAmount = offerAmount;
+        request.deadline = _deadline;
+        request.offerAmount = _offerAmount;
 
-        emit AtomicRequestUpdated(msg.sender, address(offer), address(want), offerAmount, deadline, block.timestamp);
+        emit AtomicRequestUpdated(msg.sender, address(_offer), address(_want), _offerAmount, _deadline, block.timestamp);
     }
 
     //============================== SOLVER FUNCTIONS ===============================
@@ -179,22 +176,22 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param solver the address to make `finishSolve` callback to
      */
     function solve(
-        ERC20 offer,
-        ERC20 want,
-        address[] calldata users,
-        bytes calldata runData,
-        address solver
+        ERC20 _offer,
+        ERC20 _want,
+        address[] calldata _users,
+        bytes calldata _runData,
+        address _solver
     )
         external
         requiresAuth
         nonReentrant
     {
         (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts) =
-            _prepareSolve(offer, want, users, solver);
+            _prepareSolve(_offer, _want, _users, _solver);
 
-        IAtomicSolver(solver).finishSolve(runData, msg.sender, offer, want, assetsToOffer, assetsForWant);
+        IAtomicSolver(_solver).finishSolve(_runData, msg.sender, _offer, _want, assetsToOffer, assetsForWant);
 
-        _finalizeSolve(offer, want, users, solver, userWantAmounts);
+        _finalizeSolve(_offer, _want, _users, _solver, userWantAmounts);
     }
 
     //============================== INTERNAL HELPER FUNCTIONS ===============================
@@ -210,24 +207,24 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @return assetsForWant total want tokens solver needs to provide
      */
     function _prepareSolve(
-        ERC20 offer,
-        ERC20 want,
-        address[] calldata users,
-        address solver
+        ERC20 _offer,
+        ERC20 _want,
+        address[] calldata _users,
+        address _solver
     )
         internal
         returns (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts)
     {
-        userWantAmounts = new uint256[](users.length);
+        userWantAmounts = new uint256[](_users.length);
 
-        for (uint256 i; i < users.length; ++i) {
-            AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
+        for (uint256 i; i < _users.length; ++i) {
+            AtomicRequest storage request = userAtomicRequest[_users[i]][_offer][_want];
 
-            if (request.inSolve) revert AtomicQueue__UserRepeated(users[i]);
-            if (block.timestamp > request.deadline) revert AtomicQueue__RequestDeadlineExceeded(users[i]);
-            if (request.offerAmount == 0) revert AtomicQueue__ZeroOfferAmount(users[i]);
+            if (request.inSolve) revert AtomicQueue__UserRepeated(_users[i]);
+            if (block.timestamp > request.deadline) revert AtomicQueue__RequestDeadlineExceeded(_users[i]);
+            if (request.offerAmount == 0) revert AtomicQueue__ZeroOfferAmount(_users[i]);
 
-            uint256 wantAmount = _calculateWantAmount(offer, want, request.offerAmount);
+            uint256 wantAmount = _calculateWantAmount(_offer, _want, request.offerAmount);
 
             if (wantAmount == 0) revert AtomicQueue__ZeroOutputAmount();
 
@@ -237,7 +234,7 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             assetsToOffer += request.offerAmount;
             request.inSolve = true;
 
-            offer.safeTransferFrom(users[i], solver, request.offerAmount);
+            _offer.safeTransferFrom(_users[i], _solver, request.offerAmount);
         }
 
         // Final checks
@@ -246,26 +243,26 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     }
 
     function _finalizeSolve(
-        ERC20 offer,
-        ERC20 want,
-        address[] calldata users,
-        address solver,
-        uint256[] memory userWantAmounts
+        ERC20 _offer,
+        ERC20 _want,
+        address[] calldata _users,
+        address _solver,
+        uint256[] memory _userWantAmounts
     )
         internal
     {
-        for (uint256 i; i < users.length; ++i) {
-            AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
+        for (uint256 i; i < _users.length; ++i) {
+            AtomicRequest storage request = userAtomicRequest[_users[i]][_offer][_want];
 
-            if (!request.inSolve) revert AtomicQueue__UserNotInSolve(users[i]);
+            if (!request.inSolve) revert AtomicQueue__UserNotInSolve(_users[i]);
 
             // Use pre-calculated amount
-            uint256 amountOut = userWantAmounts[i];
+            uint256 amountOut = _userWantAmounts[i];
 
-            want.safeTransferFrom(solver, users[i], amountOut);
+            _want.safeTransferFrom(_solver, _users[i], amountOut);
 
             emit AtomicRequestFulfilled(
-                users[i], address(offer), address(want), request.offerAmount, amountOut, block.timestamp
+                _users[i], address(_offer), address(_want), request.offerAmount, amountOut, block.timestamp
             );
 
             request.offerAmount = 0;
@@ -286,19 +283,19 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param users an array of user addresses to check for solvability
      */
     function viewSolveMetaData(
-        ERC20 offer,
-        ERC20 want,
-        address[] calldata users
+        ERC20 _offer,
+        ERC20 _want,
+        address[] calldata _users
     )
         external
         view
         returns (SolveMetaData[] memory metaData, uint256 totalAssetsForWant, uint256 totalAssetsToOffer)
     {
-        metaData = new SolveMetaData[](users.length);
+        metaData = new SolveMetaData[](_users.length);
 
-        for (uint256 i; i < users.length; ++i) {
-            AtomicRequest memory request = userAtomicRequest[users[i]][offer][want];
-            metaData[i].user = users[i];
+        for (uint256 i; i < _users.length; ++i) {
+            AtomicRequest memory request = userAtomicRequest[_users[i]][_offer][_want];
+            metaData[i].user = _users[i];
 
             if (block.timestamp > request.deadline) {
                 metaData[i].flags |= uint8(1);
@@ -306,17 +303,17 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             if (request.offerAmount == 0) {
                 metaData[i].flags |= uint8(1) << 1;
             }
-            if (offer.balanceOf(users[i]) < request.offerAmount) {
+            if (_offer.balanceOf(_users[i]) < request.offerAmount) {
                 metaData[i].flags |= uint8(1) << 2;
             }
-            if (offer.allowance(users[i], address(this)) < request.offerAmount) {
+            if (_offer.allowance(_users[i], address(this)) < request.offerAmount) {
                 metaData[i].flags |= uint8(1) << 3;
             }
 
             metaData[i].assetsToOffer = request.offerAmount;
 
             if (request.offerAmount > 0) {
-                metaData[i].assetsForWant = _calculateWantAmount(offer, want, request.offerAmount);
+                metaData[i].assetsForWant = _calculateWantAmount(_offer, _want, request.offerAmount);
             }
 
             if (metaData[i].flags == 0) {
@@ -329,48 +326,48 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     /**
      * @notice Convert asset amount to 18 decimal value
      */
-    function _convertAssetToValue18(ERC20 asset, uint256 amount) internal view returns (uint256) {
-        if (address(asset) == address(accountant.base())) {
-            return _changeDecimals(amount, accountant.decimals(), 18);
+    function _convertAssetToValue18(ERC20 _asset, uint256 _amount) internal view returns (uint256) {
+        if (address(_asset) == address(accountant.base())) {
+            return _changeDecimals(_amount, accountant.decimals(), 18);
         }
 
-        (bool isPegged,) = accountant.rateProviderData(asset);
+        (bool isPegged,) = accountant.rateProviderData(_asset);
         if (isPegged) {
-            return _changeDecimals(amount, asset.decimals(), 18);
+            return _changeDecimals(_amount, _asset.decimals(), 18);
         } else {
-            (, IRateProvider rateProvider) = accountant.rateProviderData(asset);
+            (, IRateProvider rateProvider) = accountant.rateProviderData(_asset);
             uint256 rate = rateProvider.getRate();
-            return amount.mulDivDown(rate, 10 ** asset.decimals());
+            return _amount.mulDivDown(rate, 10 ** _asset.decimals());
         }
     }
 
     /**
      * @notice Convert 18 decimal value to asset amount
      */
-    function _convertValue18ToAsset(ERC20 asset, uint256 valueIn18) internal view returns (uint256) {
-        if (address(asset) == address(accountant.base())) {
-            return _changeDecimals(valueIn18, 18, accountant.decimals());
+    function _convertValue18ToAsset(ERC20 _asset, uint256 _valueIn18) internal view returns (uint256) {
+        if (address(_asset) == address(accountant.base())) {
+            return _changeDecimals(_valueIn18, 18, accountant.decimals());
         }
 
-        (bool isPegged,) = accountant.rateProviderData(asset);
+        (bool isPegged,) = accountant.rateProviderData(_asset);
         if (isPegged) {
-            return _changeDecimals(valueIn18, 18, asset.decimals());
+            return _changeDecimals(_valueIn18, 18, _asset.decimals());
         } else {
-            (, IRateProvider rateProvider) = accountant.rateProviderData(asset);
+            (, IRateProvider rateProvider) = accountant.rateProviderData(_asset);
             uint256 rate = rateProvider.getRate();
-            return valueIn18.mulDivDown(10 ** asset.decimals(), rate);
+            return _valueIn18.mulDivDown(10 ** _asset.decimals(), rate);
         }
     }
 
     /**
      * @notice Helper to change decimals
      */
-    function _changeDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
-        if (fromDecimals == toDecimals) return amount;
-        if (fromDecimals < toDecimals) {
-            return amount * 10 ** (toDecimals - fromDecimals);
+    function _changeDecimals(uint256 _amount, uint8 _fromDecimals, uint8 _toDecimals) internal pure returns (uint256) {
+        if (_fromDecimals == _toDecimals) return _amount;
+        if (_fromDecimals < _toDecimals) {
+            return _amount * 10 ** (_toDecimals - _fromDecimals);
         } else {
-            return amount / 10 ** (fromDecimals - toDecimals);
+            return _amount / 10 ** (_fromDecimals - _toDecimals);
         }
     }
 
@@ -383,9 +380,9 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @return wantAmount the calculated want amount
      */
     function _calculateWantAmount(
-        ERC20 offer,
-        ERC20 want,
-        uint256 offerAmount
+        ERC20 _offer,
+        ERC20 _want,
+        uint256 _offerAmount
     )
         internal
         view
@@ -393,22 +390,22 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     {
         uint256 rate = accountant.getRate(); // Rate is in 18 decimals
 
-        if (address(offer) == address(accountant.vault())) {
+        if (address(_offer) == address(accountant.vault())) {
             // Withdrawing: vault shares -> asset
-            uint8 vaultDecimals = ERC20(address(offer)).decimals();
-            uint256 sharesIn18 = _changeDecimals(offerAmount, vaultDecimals, 18);
+            uint8 vaultDecimals = ERC20(address(_offer)).decimals();
+            uint256 sharesIn18 = _changeDecimals(_offerAmount, vaultDecimals, 18);
             uint256 valueIn18 = sharesIn18.mulDivDown(rate, 1e18);
-            wantAmount = _convertValue18ToAsset(want, valueIn18);
-        } else if (address(want) == address(accountant.vault())) {
+            wantAmount = _convertValue18ToAsset(_want, valueIn18);
+        } else if (address(_want) == address(accountant.vault())) {
             // Depositing: asset -> vault shares
-            uint8 vaultDecimals = ERC20(address(want)).decimals();
-            uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
+            uint8 vaultDecimals = ERC20(address(_want)).decimals();
+            uint256 valueIn18 = _convertAssetToValue18(_offer, _offerAmount);
             uint256 sharesIn18 = valueIn18.mulDivDown(1e18, rate);
             wantAmount = _changeDecimals(sharesIn18, 18, vaultDecimals);
         } else {
             // Swap: asset -> asset (through value)
-            uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
-            wantAmount = _convertValue18ToAsset(want, valueIn18);
+            uint256 valueIn18 = _convertAssetToValue18(_offer, _offerAmount);
+            wantAmount = _convertValue18ToAsset(_want, valueIn18);
         }
     }
 }
