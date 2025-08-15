@@ -44,7 +44,8 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     /**
      * @notice Used in `viewSolveMetaData` helper function to return data in a clean struct.
      * @param user the address of the user
-     * @param flags 8 bits indicating the state of the user only the first 4 bits are used XXXX0000
+     * @param flags 8 bits indicating the state of the user; only the
+     * lowest 4 bits (0000XXXX) are used.
      *              Either all flags are false(user is solvable) or only 1 is true(an error occurred).
      *              From right to left
      *              - 0: indicates user deadline has passed.
@@ -70,11 +71,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     mapping(address => mapping(ERC20 => mapping(ERC20 => AtomicRequest))) public userAtomicRequest;
 
     //============================== ERRORS ===============================
-
-    error AtomicQueue__UserRepeated(address user);
-    error AtomicQueue__RequestDeadlineExceeded(address user);
-    error AtomicQueue__UserNotInSolve(address user);
-    error AtomicQueue__ZeroOfferAmount(address user);
     error AtomicQueue__OnlyCallableInternally();
 
     //============================== EVENTS ===============================
@@ -88,7 +84,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         address wantToken,
         uint256 amount,
         uint256 deadline,
-        uint256 minPrice,
         uint256 timestamp
     );
 
@@ -115,7 +110,7 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     /**
      * @notice Get a users Atomic Request.
      * @param user the address of the user to get the request for
-     * @param offer the ERC0 token they want to exchange for the want
+     * @param offer the ERC20 token they want to exchange for the want
      * @param want the ERC20 token they want in exchange for the offer
      */
     function getUserAtomicRequest(address user, ERC20 offer, ERC20 want) external view returns (AtomicRequest memory) {
@@ -124,12 +119,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
     /**
      * @notice Helper function that returns either
-     *         true: Withdraw request is valid.
-     *         false: Withdraw request is not valid.
-     * @dev It is possible for a withdraw request to return false from this function, but using the
+     *         true: atomic request is valid.
+     *         false: atomic request is not valid.
+     * @dev It is possible for a atomic request to return false from this function, but using the
      *      request in `updateAtomicRequest` will succeed, but solvers will not be able to include
      *      the user in `solve` unless some other state is changed.
-     * @param offer the ERC0 token they want to exchange for the want
+     * @param offer the ERC20 token they want to exchange for the want
      * @param user the address of the user making the request
      * @param userRequest the request struct to validate
      */
@@ -151,7 +146,7 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     }
 
     /**
-     * @notice Allows user to add/update their withdraw request.
+     * @notice Allows user to add/update their atomic request.
      * @param offer the ERC20 token the user is offering in exchange for the want
      * @param want the ERC20 token the user wants in exchange for offer
      * @param deadline unix timestamp for when request is no longer valid
@@ -163,7 +158,7 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         request.deadline = deadline;
         request.offerAmount = offerAmount;
 
-        emit AtomicRequestUpdated(msg.sender, address(offer), address(want), offerAmount, deadline, 0, block.timestamp);
+        emit AtomicRequestUpdated(msg.sender, address(offer), address(want), offerAmount, deadline, block.timestamp);
     }
 
     //============================== SOLVER FUNCTIONS ===============================
@@ -172,8 +167,8 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @notice Called by solvers in order to exchange offer asset for want asset.
      * @notice Solvers are optimistically transferred the offer asset, then are required to
      *         approve this contract to spend enough of want assets to cover all requests.
-     * @dev It is very likely `solve` TXs will be front run if broadcasted to public mem pools,
-     *      so solvers should use private mem pools.
+     * @dev It is very likely `solve` TXs will be front run if broadcasted to public mempools,
+     *      so solvers should use private mempools.
      * @param offer the ERC20 offer token to solve for
      * @param want the ERC20 want token to solve for
      * @param users an array of user addresses to solve for
