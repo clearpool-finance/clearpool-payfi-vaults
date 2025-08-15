@@ -12,11 +12,8 @@ import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 
 /**
  * @title AtomicQueue
- * @notice Allows users to create `AtomicRequests` that specify an ERC20 asset to `offer`
- *         and an ERC20 asset to `want` in return.
- * @notice Making atomic requests where the exchange rate between offer and want is not
- *         relatively stable is effectively the same as placing a limit order between
- *         those assets, so requests can be filled at a rate worse than the current market rate.
+ * @notice Allows users to create `AtomicRequests` that specify an ERC20 asset to `offer` and an ERC20 asset to `want` in return.
+ * @notice Making atomic requests where the exchange rate between offer and want is not relatively stable is effectively the same as placing a limit order between those assets, so requests can be filled at a rate worse than the current market rate.
  * @notice It is possible for a user to make multiple requests that use the same offer asset.
  *         If this is done it is important that the user has approved the queue to spend the
  *         total amount of assets aggregated from all their requests, and to also have enough
@@ -71,6 +68,10 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     mapping(address => mapping(ERC20 => mapping(ERC20 => AtomicRequest))) public userAtomicRequest;
 
     //============================== ERRORS ===============================
+    error AtomicQueue__UserRepeated(address user);
+    error AtomicQueue__RequestDeadlineExceeded(address user);
+    error AtomicQueue__UserNotInSolve(address user);
+    error AtomicQueue__ZeroOfferAmount(address user);
     error AtomicQueue__ZeroOutputAmount();
 
     //============================== EVENTS ===============================
@@ -236,10 +237,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
             _offer.safeTransferFrom(_users[i], _solver, request.offerAmount);
         }
-
-        // Final checks
-        if (assetsToOffer == 0) revert AtomicQueue__NoValidRequests();
-        if (assetsForWant == 0) revert AtomicQueue__NoOutputExpected();
     }
 
     function _finalizeSolve(
