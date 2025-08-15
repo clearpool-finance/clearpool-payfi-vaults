@@ -72,6 +72,9 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
     //============================== ERRORS ===============================
     error AtomicQueue__OnlyCallableInternally();
+    error AtomicQueue__NoValidRequests();
+    error AtomicQueue__NoOutputExpected();
+    error AtomicQueue__ZeroOutputAmount();
 
     //============================== EVENTS ===============================
 
@@ -186,11 +189,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         requiresAuth
         nonReentrant
     {
-        (uint256 assetsToOffer, uint256 assetsForWant) = _prepareSolve(offer, want, users, solver);
+        (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts) =
+            _prepareSolve(offer, want, users, solver);
 
         IAtomicSolver(solver).finishSolve(runData, msg.sender, offer, want, assetsToOffer, assetsForWant);
 
-        _finalizeSolve(offer, want, users, solver);
+        _finalizeSolve(offer, want, users, solver, userWantAmounts);
     }
 
     //============================== INTERNAL HELPER FUNCTIONS ===============================
@@ -212,67 +216,61 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         address solver
     )
         internal
-        returns (uint256 assetsToOffer, uint256 assetsForWant)
+        returns (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts)
+    {
+        userWantAmounts = new uint256[](users.length);
+
+        for (uint256 i; i < users.length; ++i) {
+            AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
+
+            if (request.inSolve) revert AtomicQueue__UserRepeated(users[i]);
+            if (block.timestamp > request.deadline) revert AtomicQueue__RequestDeadlineExceeded(users[i]);
+            if (request.offerAmount == 0) revert AtomicQueue__ZeroOfferAmount(users[i]);
+
+            uint256 wantAmount = _calculateWantAmount(offer, want, request.offerAmount);
+
+            if (wantAmount == 0) revert AtomicQueue__ZeroOutputAmount();
+
+            // Store the calculated amount for this user
+            userWantAmounts[i] = wantAmount;
+            assetsForWant += wantAmount;
+            assetsToOffer += request.offerAmount;
+            request.inSolve = true;
+
+            offer.safeTransferFrom(users[i], solver, request.offerAmount);
+        }
+
+        // Final checks
+        if (assetsToOffer == 0) revert AtomicQueue__NoValidRequests();
+        if (assetsForWant == 0) revert AtomicQueue__NoOutputExpected();
+    }
+
+    function _finalizeSolve(
+        ERC20 offer,
+        ERC20 want,
+        address[] calldata users,
+        address solver,
+        uint256[] memory userWantAmounts
+    )
+        internal
     {
         for (uint256 i; i < users.length; ++i) {
             AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
 
-            if (request.inSolve || block.timestamp > request.deadline || request.offerAmount == 0) {
-                continue;
-            }
+            if (!request.inSolve) revert AtomicQueue__UserNotInSolve(users[i]);
 
-            try this.attemptTransfer(offer, users[i], solver, request.offerAmount) {
-                uint256 wantAmount;
+            // Use pre-calculated amount
+            uint256 amountOut = userWantAmounts[i];
 
-                // Special handling for vault shares
-                if (address(offer) == address(accountant.vault())) {
-                    // Withdrawing: vault shares -> asset
-                    wantAmount = _calculateWithdrawAmount(want, request.offerAmount);
-                } else if (address(want) == address(accountant.vault())) {
-                    // Depositing: asset -> vault shares
-                    wantAmount = _calculateDepositShares(offer, request.offerAmount);
-                } else {
-                    // Swap: asset -> asset (through value)
-                    uint256 valueIn18 = _convertAssetToValue18(offer, request.offerAmount);
-                    wantAmount = _convertValue18ToAsset(want, valueIn18);
-                }
+            want.safeTransferFrom(solver, users[i], amountOut);
 
-                assetsForWant += wantAmount;
-                assetsToOffer += request.offerAmount;
-                request.inSolve = true;
-            } catch {
-                continue;
-            }
-        }
-    }
+            emit AtomicRequestFulfilled(
+                users[i], address(offer), address(want), request.offerAmount, amountOut, block.timestamp
+            );
 
-    function _finalizeSolve(ERC20 offer, ERC20 want, address[] calldata users, address solver) internal {
-        for (uint256 i; i < users.length; ++i) {
-            AtomicRequest storage request = userAtomicRequest[users[i]][offer][want];
-
-            if (request.inSolve) {
-                uint256 amountOut;
-
-                // Same logic as _prepareSolve
-                if (address(offer) == address(accountant.vault())) {
-                    amountOut = _calculateWithdrawAmount(want, request.offerAmount);
-                } else if (address(want) == address(accountant.vault())) {
-                    amountOut = _calculateDepositShares(offer, request.offerAmount);
-                } else {
-                    uint256 valueIn18 = _convertAssetToValue18(offer, request.offerAmount);
-                    amountOut = _convertValue18ToAsset(want, valueIn18);
-                }
-
-                want.safeTransferFrom(solver, users[i], amountOut);
-
-                emit AtomicRequestFulfilled(
-                    users[i], address(offer), address(want), request.offerAmount, amountOut, block.timestamp
-                );
-
-                request.offerAmount = 0;
-                request.deadline = 0;
-                request.inSolve = false;
-            }
+            request.offerAmount = 0;
+            request.deadline = 0;
+            request.inSolve = false;
         }
     }
 
@@ -318,15 +316,7 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             metaData[i].assetsToOffer = request.offerAmount;
 
             if (request.offerAmount > 0) {
-                // Calculate want amount using same logic as _prepareSolve
-                if (address(offer) == address(accountant.vault())) {
-                    metaData[i].assetsForWant = _calculateWithdrawAmount(want, request.offerAmount);
-                } else if (address(want) == address(accountant.vault())) {
-                    metaData[i].assetsForWant = _calculateDepositShares(offer, request.offerAmount);
-                } else {
-                    uint256 valueIn18 = _convertAssetToValue18(offer, request.offerAmount);
-                    metaData[i].assetsForWant = _convertValue18ToAsset(want, valueIn18);
-                }
+                metaData[i].assetsForWant = _calculateWantAmount(offer, want, request.offerAmount);
             }
 
             if (metaData[i].flags == 0) {
@@ -334,19 +324,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
                 totalAssetsToOffer += request.offerAmount;
             }
         }
-    }
-
-    /**
-     * @notice External helper function to enable try-catch with safeTransferFrom
-     * @dev Only callable by this contract itself
-     * @param token The ERC20 token to transfer
-     * @param from The address to transfer from
-     * @param to The address to transfer to
-     * @param amount The amount to transfer
-     */
-    function attemptTransfer(ERC20 token, address from, address to, uint256 amount) external {
-        if (msg.sender != address(this)) revert AtomicQueue__OnlyCallableInternally();
-        token.safeTransferFrom(from, to, amount);
     }
 
     /**
@@ -386,24 +363,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     }
 
     /**
-     * @notice Calculate deposit shares for an asset amount
-     */
-    function _calculateDepositShares(ERC20 asset, uint256 amount) internal view returns (uint256) {
-        uint256 rate = accountant.getRate();
-        uint256 valueIn18 = _convertAssetToValue18(asset, amount);
-        return valueIn18.mulDivDown(1e18, rate);
-    }
-
-    /**
-     * @notice Calculate withdraw amount for vault shares
-     */
-    function _calculateWithdrawAmount(ERC20 asset, uint256 shares) internal view returns (uint256) {
-        uint256 rate = accountant.getRate();
-        uint256 valueIn18 = shares.mulDivDown(rate, 1e18);
-        return _convertValue18ToAsset(asset, valueIn18);
-    }
-
-    /**
      * @notice Helper to change decimals
      */
     function _changeDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
@@ -412,6 +371,44 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             return amount * 10 ** (toDecimals - fromDecimals);
         } else {
             return amount / 10 ** (fromDecimals - toDecimals);
+        }
+    }
+
+    /**
+     * @notice Calculate want amount for a given offer amount
+     * @dev Single source of truth for swap calculations used by both _prepareSolve and viewSolveMetaData
+     * @param offer the ERC20 offer token
+     * @param want the ERC20 want token
+     * @param offerAmount the amount of offer tokens
+     * @return wantAmount the calculated want amount
+     */
+    function _calculateWantAmount(
+        ERC20 offer,
+        ERC20 want,
+        uint256 offerAmount
+    )
+        internal
+        view
+        returns (uint256 wantAmount)
+    {
+        uint256 rate = accountant.getRate(); // Rate is in 18 decimals
+
+        if (address(offer) == address(accountant.vault())) {
+            // Withdrawing: vault shares -> asset
+            uint8 vaultDecimals = ERC20(address(offer)).decimals();
+            uint256 sharesIn18 = _changeDecimals(offerAmount, vaultDecimals, 18);
+            uint256 valueIn18 = sharesIn18.mulDivDown(rate, 1e18);
+            wantAmount = _convertValue18ToAsset(want, valueIn18);
+        } else if (address(want) == address(accountant.vault())) {
+            // Depositing: asset -> vault shares
+            uint8 vaultDecimals = ERC20(address(want)).decimals();
+            uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
+            uint256 sharesIn18 = valueIn18.mulDivDown(1e18, rate);
+            wantAmount = _changeDecimals(sharesIn18, 18, vaultDecimals);
+        } else {
+            // Swap: asset -> asset (through value)
+            uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
+            wantAmount = _convertValue18ToAsset(want, valueIn18);
         }
     }
 }
