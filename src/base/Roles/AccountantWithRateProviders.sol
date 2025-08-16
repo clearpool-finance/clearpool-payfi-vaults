@@ -1,3 +1,5 @@
+// code changes
+
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.22;
 
@@ -33,7 +35,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     struct AccountantState {
         address _payoutAddress;
         uint128 _feesOwedInBase;
-        uint128 _totalSharesLastUpdate;
         uint96 _exchangeRate;
         uint16 _allowedExchangeRateChangeUpper;
         uint16 _allowedExchangeRateChangeLower;
@@ -91,6 +92,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     error AccountantWithRateProviders__OnlyCallableByBoringVault();
     error AccountantWithRateProviders__UpdateDelayTooLarge();
     error AccountantWithRateProviders__UpperMustExceedLower();
+    error AccountantWithRateProviders__LendingRateExceedsMaximum();
 
     //============================== EVENTS ===============================
 
@@ -151,7 +153,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         accountantState = AccountantState({
             _payoutAddress: _payoutAddress,
             _feesOwedInBase: 0,
-            _totalSharesLastUpdate: uint128(vault.totalSupply()),
             _exchangeRate: _startingExchangeRate,
             _allowedExchangeRateChangeUpper: _allowedExchangeRateChangeUpper,
             _allowedExchangeRateChangeLower: _allowedExchangeRateChangeLower,
@@ -283,7 +284,6 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
         // Always update the rate and timestamp
         state._exchangeRate = _newExchangeRate;
-        state._totalSharesLastUpdate = uint128(currentTotalShares);
         state._lastUpdateTimestamp = currentTime;
 
         emit ExchangeRateUpdated(oldExchangeRate, _newExchangeRate, currentTime);
@@ -296,7 +296,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @param _lendingRate New lending rate in basis points (1000 = 10% APY)
      */
     function setLendingRate(uint256 _lendingRate) external requiresAuth {
-        require(_lendingRate <= maxLendingRate, "Lending rate exceeds maximum");
+        if (_lendingRate > maxLendingRate) revert AccountantWithRateProviders__LendingRateExceedsMaximum();
 
         // Checkpoint both interest and fees before rate change
         _checkpointInterestAndFees();
@@ -533,7 +533,7 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Callable by authorized contracts (Teller) to ensure rate consistency
      */
     function checkpoint() external requiresAuth {
-        require(!accountantState._isPaused, "Cannot checkpoint when paused");
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
         _checkpointInterestAndFees();
     }
 
