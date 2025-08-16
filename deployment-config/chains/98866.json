@@ -1,0 +1,7 @@
+{
+  "name": "Plume Mainnet",
+  "balancerVault": "0x0000000000000000000000000000000000000000",
+  "lzEndpoint": "0xC1b15d3B262bEeC0e3565C11C9e0F6134BdaCB36",
+  "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+  "assetToRateProviderAndPriceFeed": {}
+}
