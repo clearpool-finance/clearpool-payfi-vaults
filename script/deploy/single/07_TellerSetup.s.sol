@@ -36,8 +36,15 @@ contract TellerSetup is BaseScript {
             string memory key = string(
                 abi.encodePacked(".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".rateProvider")
             );
+            bool isPeggedToBase = getChainConfigFile().readBool(
+                string(
+                    abi.encodePacked(
+                        ".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".isPeggedToBase"
+                    )
+                )
+            );
             address rateProvider = getChainConfigFile().readAddress(key);
-            teller.accountant().setRateProviderData(ERC20(config.assets[i]), false, rateProvider);
+            teller.accountant().setRateProviderData(ERC20(config.assets[i]), isPeggedToBase, rateProvider);
         }
     }
 }

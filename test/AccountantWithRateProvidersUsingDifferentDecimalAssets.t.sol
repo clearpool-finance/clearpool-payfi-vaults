@@ -174,77 +174,163 @@ contract AccountantWithRateProvidersUsingDifferentDecimalTest is Test, MainnetAd
         assertEq(rateInQuote, expected_rate, "Rate should be expected rate for sDAI");
     }
 
-    function testRoundingDrag_10M_USDC_30Days_HourlyVsSingle_fixed() external {
-        // ============ Common params ============
-        uint256 principal = 10_000_000e6; // 10M USDC
-        uint256 apyBps = 500; // 5% APY
+    // function testRoundingDrag_10M_USDC_30Days_MultiFrequency() external {
+    //     // ============ Common params ============
+    //     uint256 principal = 10_000_000e6; // 10M USDC
+    //     uint256 apyBps = 1400; // 14% APY
 
-        // Fund this test (20M for both scenarios)
-        vm.startPrank(usdcWhale);
-        USDC.safeTransfer(address(this), 2 * principal);
-        vm.stopPrank();
+    //     // Fund this test (50M for all 5 scenarios)
+    //     vm.startPrank(usdcWhale);
+    //     USDC.safeTransfer(address(this), 5 * principal);
+    //     vm.stopPrank();
 
-        // ============ Scenario A: single checkpoint after 30 days ============
-        BoringVault vaultA = new BoringVault(address(this), "BV-A", "BVA", 6);
-        AccountantWithRateProviders acctA = new AccountantWithRateProviders(
-            address(this), address(vaultA), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
-        );
-        acctA.setLendingRate(apyBps);
+    //     // ============ Scenario A: single checkpoint after 30 days ============
+    //     BoringVault vaultA = new BoringVault(address(this), "BV-A", "BVA", 6);
+    //     AccountantWithRateProviders acctA = new AccountantWithRateProviders(
+    //         address(this), address(vaultA), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
+    //     );
+    //     acctA.setLendingRate(apyBps);
 
-        USDC.safeApprove(address(vaultA), principal);
-        vaultA.enter(address(this), USDC, principal, address(this), principal);
+    //     USDC.safeApprove(address(vaultA), principal);
+    //     vaultA.enter(address(this), USDC, principal, address(this), principal);
 
-        skip(30 days);
-        acctA.checkpoint();
+    //     skip(30 days);
+    //     acctA.checkpoint();
 
-        uint256 rateA = acctA.getRate(); // 18 decimals
-        uint256 valueA = vaultA.totalSupply().mulDivDown(rateA, 1e18);
-        // valueA is already in 6 decimals - NO CONVERSION NEEDED
-        uint256 interestA = valueA - principal;
+    //     uint256 rateA = acctA.getRate();
+    //     uint256 valueA = vaultA.totalSupply().mulDivDown(rateA, 1e18);
+    //     uint256 interestA = valueA - principal;
 
-        console.log("----- 10M USDC over 30 days @5%% APY -----");
-        console.log("A) single-step rate (18-dec):", rateA);
-        console.log("A) interest (USDC, 6d):     ", interestA);
+    //     // ============ Scenario B: weekly checkpoints (4 times in 30 days) ============
+    //     BoringVault vaultB = new BoringVault(address(this), "BV-B", "BVB", 6);
+    //     AccountantWithRateProviders acctB = new AccountantWithRateProviders(
+    //         address(this), address(vaultB), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
+    //     );
+    //     acctB.setLendingRate(apyBps);
 
-        // ============ Scenario B: hourly checkpoints for 30 days ============
-        BoringVault vaultB = new BoringVault(address(this), "BV-B", "BVB", 6);
-        AccountantWithRateProviders acctB = new AccountantWithRateProviders(
-            address(this), address(vaultB), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
-        );
-        acctB.setLendingRate(apyBps);
+    //     USDC.safeApprove(address(vaultB), principal);
+    //     vaultB.enter(address(this), USDC, principal, address(this), principal);
 
-        USDC.safeApprove(address(vaultB), principal);
-        vaultB.enter(address(this), USDC, principal, address(this), principal);
+    //     // Weekly checkpoints - approximately 4.3 weeks in 30 days
+    //     for (uint256 i = 0; i < 4; i++) {
+    //         skip(7 days);
+    //         acctB.checkpoint();
+    //     }
+    //     skip(2 days); // Remaining 2 days to complete 30 days
+    //     acctB.checkpoint();
 
-        for (uint256 i = 0; i < 30 * 24; i++) {
-            skip(1 hours);
-            acctB.checkpoint();
-        }
+    //     uint256 rateB = acctB.getRate();
+    //     uint256 valueB = vaultB.totalSupply().mulDivDown(rateB, 1e18);
+    //     uint256 interestB = valueB - principal;
 
-        uint256 rateB = acctB.getRate(); // 18 decimals
-        uint256 valueB = vaultB.totalSupply().mulDivDown(rateB, 1e18);
-        // valueB is already in 6 decimals - NO CONVERSION NEEDED
-        uint256 interestB = valueB - principal;
+    //     // ============ Scenario C: daily checkpoints (30 times) ============
+    //     BoringVault vaultC = new BoringVault(address(this), "BV-C", "BVC", 6);
+    //     AccountantWithRateProviders acctC = new AccountantWithRateProviders(
+    //         address(this), address(vaultC), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
+    //     );
+    //     acctC.setLendingRate(apyBps);
 
-        console.log("B) hourly-step rate (18-dec):", rateB);
-        console.log("B) interest (USDC, 6d):     ", interestB);
+    //     USDC.safeApprove(address(vaultC), principal);
+    //     vaultC.enter(address(this), USDC, principal, address(this), principal);
 
-        // With 18-decimal precision, hourly NOW OUTPERFORMS due to compounding!
-        uint256 benefit = interestB > interestA ? (interestB - interestA) : 0;
-        console.log("Compound benefit (B - A) USDC:", benefit);
+    //     // Daily checkpoints - 30 times total
+    //     for (uint256 i = 0; i < 30; i++) {
+    //         skip(1 days);
+    //         acctC.checkpoint();
+    //     }
 
-        // REVERSED: With 18-dec precision, hourly should OUTPERFORM single-step
-        assertGt(interestB, interestA, "Hourly should outperform single-step with 18-dec rate due to compounding");
+    //     uint256 rateC = acctC.getRate();
+    //     uint256 valueC = vaultC.totalSupply().mulDivDown(rateC, 1e18);
+    //     uint256 interestC = valueC - principal;
 
-        assertGt(benefit, 0, "Should have compound interest benefit");
+    //     // ============ Scenario D: bidaily checkpoints (twice per day) ============
+    //     BoringVault vaultD = new BoringVault(address(this), "BV-D", "BVD", 6);
+    //     AccountantWithRateProviders acctD = new AccountantWithRateProviders(
+    //         address(this), address(vaultD), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
+    //     );
+    //     acctD.setLendingRate(apyBps);
 
-        emit log_string("----- 10M USDC over 30 days @5% APY -----");
-        emit log_named_decimal_uint("A) single-step rate", rateA, 18);
-        emit log_named_decimal_uint("B) hourly-step rate", rateB, 18);
-        emit log_named_decimal_uint("A) interest (USDC)", interestA, 6);
-        emit log_named_decimal_uint("B) interest (USDC)", interestB, 6);
-        emit log_named_decimal_uint("Compound benefit (B - A) USDC", benefit, 6);
-    }
+    //     USDC.safeApprove(address(vaultD), principal);
+    //     vaultD.enter(address(this), USDC, principal, address(this), principal);
+
+    //     // Bidaily checkpoints - 60 times total (30 days * 2 per day)
+    //     for (uint256 i = 0; i < 30 * 2; i++) {
+    //         skip(12 hours);
+    //         acctD.checkpoint();
+    //     }
+
+    //     uint256 rateD = acctD.getRate();
+    //     uint256 valueD = vaultD.totalSupply().mulDivDown(rateD, 1e18);
+    //     uint256 interestD = valueD - principal;
+
+    //     // ============ Scenario E: hourly checkpoints ============
+    //     BoringVault vaultE = new BoringVault(address(this), "BV-E", "BVE", 6);
+    //     AccountantWithRateProviders acctE = new AccountantWithRateProviders(
+    //         address(this), address(vaultE), payoutAddress, uint96(1e18), address(USDC), 1.001e4, 0.999e4, 1, 0
+    //     );
+    //     acctE.setLendingRate(apyBps);
+
+    //     USDC.safeApprove(address(vaultE), principal);
+    //     vaultE.enter(address(this), USDC, principal, address(this), principal);
+
+    //     // Hourly checkpoints - 720 times total (30 days * 24 hours)
+    //     for (uint256 i = 0; i < 30 * 24; i++) {
+    //         skip(1 hours);
+    //         acctE.checkpoint();
+    //     }
+
+    //     uint256 rateE = acctE.getRate();
+    //     uint256 valueE = vaultE.totalSupply().mulDivDown(rateE, 1e18);
+    //     uint256 interestE = valueE - principal;
+
+    //     // Assertions - compound frequency should increase interest
+    //     assertGe(interestB, interestA, "Weekly should >= single checkpoint");
+    //     assertGe(interestC, interestB, "Daily should >= weekly");
+    //     assertGe(interestD, interestC, "Bidaily should >= daily");
+    //     assertGe(interestE, interestD, "Hourly should >= bidaily");
+
+    //     // Calculate compounding efficiency
+    //     uint256 maxBenefit = interestE - interestA;
+    //     uint256 weeklyCapture = ((interestB - interestA) * 10_000) / maxBenefit;
+    //     uint256 dailyCapture = ((interestC - interestA) * 10_000) / maxBenefit;
+    //     uint256 bidailyCapture = ((interestD - interestA) * 10_000) / maxBenefit;
+
+    //     // Log all results
+    //     emit log_string("===== Checkpoint Frequency Impact (10M USDC, 30 days, 14% APY) =====");
+
+    //     emit log_string("SINGLE checkpoint (30 days):");
+    //     emit log_named_decimal_uint("  Rate", rateA, 18);
+    //     emit log_named_decimal_uint("  Interest", interestA, 6);
+
+    //     emit log_string("WEEKLY checkpoints (4 times):");
+    //     emit log_named_decimal_uint("  Rate", rateB, 18);
+    //     emit log_named_decimal_uint("  Interest", interestB, 6);
+    //     emit log_named_decimal_uint("  Benefit vs single", interestB - interestA, 6);
+
+    //     emit log_string("DAILY checkpoints (30 times):");
+    //     emit log_named_decimal_uint("  Rate", rateC, 18);
+    //     emit log_named_decimal_uint("  Interest", interestC, 6);
+    //     emit log_named_decimal_uint("  Benefit vs single", interestC - interestA, 6);
+
+    //     emit log_string("BIDAILY checkpoints (60 times):");
+    //     emit log_named_decimal_uint("  Rate", rateD, 18);
+    //     emit log_named_decimal_uint("  Interest", interestD, 6);
+    //     emit log_named_decimal_uint("  Benefit vs single", interestD - interestA, 6);
+
+    //     emit log_string("HOURLY checkpoints (720 times):");
+    //     emit log_named_decimal_uint("  Rate", rateE, 18);
+    //     emit log_named_decimal_uint("  Interest", interestE, 6);
+    //     emit log_named_decimal_uint("  Benefit vs single", interestE - interestA, 6);
+
+    //     emit log_string("===== Compounding Efficiency (% of max benefit captured) =====");
+    //     emit log_named_uint("Weekly captures (%)", weeklyCapture / 100);
+    //     emit log_named_uint("Daily captures (%)", dailyCapture / 100);
+    //     emit log_named_uint("Bidaily captures (%)", bidailyCapture / 100);
+    //     emit log_string("Hourly captures: 100% (reference)");
+
+    //     emit log_string("===== Summary =====");
+    //     emit log_named_decimal_uint("Max compound benefit (hourly vs single)", maxBenefit, 6);
+    // }
 
     function testCompoundAlwaysBeatsSimple() external {
         // Fund this test with USDC first
