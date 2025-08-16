@@ -63,6 +63,8 @@ contract DeployAccountantWithRateProviders is BaseScript {
             accountant = AccountantWithRateProviders(CREATEX.deployCreate3(config.accountantSalt, initCode));
         }
 
+        accountant.setLendingRate(config.lendingRate);
+
         _accountantStateCheck(accountant, config, startingExchangeRate);
         return address(accountant);
     }
