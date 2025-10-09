@@ -24,6 +24,13 @@ contract TellerSetup is BaseScript {
     function deploy(ConfigReader.Config memory config) public virtual override broadcast returns (address) {
         TellerWithMultiAssetSupport teller = TellerWithMultiAssetSupport(config.teller);
 
+        // Set access control mode once
+        teller.setAccessControlMode(TellerWithMultiAssetSupport.AccessControlMode.MANUAL_WHITELIST);
+
+        address[] memory whitelist = new address[](1);
+        whitelist[0] = config.atomicSolver;
+        teller.updateManualWhitelist(whitelist, true);
+
         // add the base asset by default for all configurations
         teller.addAsset(ERC20(config.base));
 
@@ -46,5 +53,6 @@ contract TellerSetup is BaseScript {
             address rateProvider = getChainConfigFile().readAddress(key);
             teller.accountant().setRateProviderData(ERC20(config.assets[i]), isPeggedToBase, rateProvider);
         }
+        return address(teller);
     }
 }
