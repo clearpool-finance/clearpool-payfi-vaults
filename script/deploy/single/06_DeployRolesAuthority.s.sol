@@ -89,6 +89,12 @@ contract DeployRolesAuthority is BaseScript {
         );
 
         rolesAuthority.setRoleCapability(
+            UPDATE_EXCHANGE_RATE_ROLE, config.teller, TellerWithMultiAssetSupport.updateManualWhitelist.selector, true
+        );
+        rolesAuthority.setRoleCapability(
+            UPDATE_EXCHANGE_RATE_ROLE, config.teller, TellerWithMultiAssetSupport.updateContractWhitelist.selector, true
+        );
+        rolesAuthority.setRoleCapability(
             STRATEGIST_ROLE, config.teller, TellerWithMultiAssetSupport.updateManualWhitelist.selector, true
         );
         rolesAuthority.setRoleCapability(

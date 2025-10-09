@@ -1,29 +1,29 @@
 {
   "base": "0xdddd73f5df1f0dc31373357beac77545dc5a6f3f",
-  "protocolAdmin": "0xe43420E1f83530AAf8ad94e6904FDbdc3556Da2B",
+  "protocolAdmin": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
   "boringVaultAndBaseDecimals": "6",
   "boringVault": {
-    "boringVaultSalt": "0x2ddd634c506ad203da17ff00000000000000000000000000000000000000499f",
-    "boringVaultName": "Liquid Credit - PayFi",
-    "boringVaultSymbol": "cpLC",
+    "boringVaultSalt": "0x2ddd634c506ad203da17ff00000000000000000000000000000000000000699f",
+    "boringVaultName": "Ola - PayFi",
+    "boringVaultSymbol": "cpOLA",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "manager": {
-    "managerSalt": "0x40432d4b4ec00003b4a25000000000000000000000000000000000000000499f",
+    "managerSalt": "0x40432d4b4ec00003b4a25000000000000000000000000000000000000000699f",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "accountant": {
-    "accountantSalt": "0x7a184dbea6f3cc0318679f00000000000000000000000000000000000000499f",
-    "payoutAddress": "0x5898e09a4ac5798a93ee08356318299f00a7A837",
+    "accountantSalt": "0x7a184dbea6f3cc0318679f00000000000000000000000000000000000000699f",
+    "payoutAddress": "0x66346e86A0eC598d8D048D2fd1dC2D67d448DF76",
     "allowedExchangeRateChangeUpper": "10003",
     "allowedExchangeRateChangeLower": "10000",
     "minimumUpdateDelayInSeconds": "3600",
     "managementFee": "100",
-    "lendingRate": "1400",
+    "lendingRate": "0",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "teller": {
-    "tellerSalt": "0x61f8968749a56d01202c9100000000000000000000000000000000000000499f",
+    "tellerSalt": "0x61f8968749a56d01202c9100000000000000000000000000000000000000699f",
     "maxGasForPeer": 100000,
     "minGasForPeer": 0,
     "peerEid": 30370,
@@ -38,14 +38,14 @@
     "address": "0x0000000000000000000000000000000000000000"
   },
   "rolesAuthority": {
-    "rolesAuthoritySalt": "0x76bbc3b3b3000b01466a3a00000000000000000000000000000000000000499f",
-    "strategist": "0xB3FFde53f0076295f2C183f13b4A07dE288Df61D",
-    "exchangeRateBot": "0x5898e09a4ac5798a93ee08356318299e00a7A837",
-    "pauser": "0x5898e09a4ac5798a93ee08356318299f00a7A837",
+    "rolesAuthoritySalt": "0x76bbc3b3b3000b01466a3a00000000000000000000000000000000000000699f",
+    "strategist": "0x1804db94ce6114c60BDD06B998459100F01aD6C8",
+    "exchangeRateBot": "0x66346e86A0eC598d8D048D2fd1dC2D67d448DF76",
+    "pauser": "0x66346e86A0eC598d8D048D2fd1dC2D67d448DF76",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "decoder": {
-    "decoderSalt": "0x58b53893da2e0b0248268c00000000000000000000000000000000000000499f",
+    "decoderSalt": "0x58b53893da2e0b0248268c00000000000000000000000000000000000000699f",
     "address": "0x0000000000000000000000000000000000000000"
   }
 }
