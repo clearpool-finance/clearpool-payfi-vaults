@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.22;
 
-import { ITBPositionDecoderAndSanitizer } from
-    "src/base/DecodersAndSanitizers/Protocols/ITB/ITBPositionDecoderAndSanitizer.sol";
+import {
+    AaveV3DecoderAndSanitizerImpl
+} from "src/base/DecodersAndSanitizers/CustomDecoders/AaveV3DecoderAndSanitizerImpl.sol";
 import { Deployer } from "src/helper/Deployer.sol";
 import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";
 import { ContractNames } from "resources/ContractNames.sol";
@@ -22,8 +23,8 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
     address boringVault;
 
     function setUp() external {
-        privateKey = vm.envUint("ETHERFI_LIQUID_DEPLOYER");
-        vm.createSelectFork("mainnet");
+        privateKey = vm.envUint("PRIVATE_KEY");
+        boringVault = vm.envAddress("BORING_VAULT");
     }
 
     function run() external {
@@ -31,9 +32,9 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
         bytes memory constructorArgs;
         vm.startBroadcast(privateKey);
 
-        creationCode = type(ITBPositionDecoderAndSanitizer).creationCode;
+        creationCode = type(AaveV3DecoderAndSanitizerImpl).creationCode;
         constructorArgs = abi.encode(boringVault);
-        deployer.deployContract("ITB Position Decoder And Sanitizer", creationCode, constructorArgs, 0);
+        deployer.deployContract("AaveV3 Decoder And Sanitizer", creationCode, constructorArgs, 0);
 
         vm.stopBroadcast();
     }

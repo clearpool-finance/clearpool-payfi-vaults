@@ -78,11 +78,7 @@ contract SimpleMessageLibMock is Ownable, ERC165 {
     }
 
     // ------------------ onlyEndpoint ------------------
-    function send(
-        Packet calldata _packet,
-        bytes memory _options,
-        bool _payInLzToken
-    )
+    function send(Packet calldata _packet, bytes memory _options, bool _payInLzToken)
         external
         onlyEndpoint
         returns (MessagingFee memory fee, bytes memory encodedPacket, bytes memory options)

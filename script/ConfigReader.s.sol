@@ -30,6 +30,7 @@ library ConfigReader {
         bytes32 managerSalt;
         address balancerVault;
         bytes32 tellerSalt;
+        uint256 depositCap; // human units (e.g., 10_000_000 for 10M)
         uint32 peerEid;
         address[] requiredDvns;
         address[] optionalDvns;
@@ -94,6 +95,7 @@ library ConfigReader {
         config.minGasForPeer = uint64(_config.readUint(".teller.minGasForPeer"));
         config.tellerContractName = _config.readString(".teller.tellerContractName");
         config.assets = _config.readAddressArray(".teller.assets");
+        config.depositCap = _config.readUint(".teller.depositCap");
 
         // layerzero
         if (compareStrings(config.tellerContractName, "MultiChainLayerZeroTellerWithMultiAssetSupport")) {

@@ -25,11 +25,13 @@ contract TellerSetup is BaseScript {
         TellerWithMultiAssetSupport teller = TellerWithMultiAssetSupport(config.teller);
 
         // Set access control mode once
-        teller.setAccessControlMode(TellerWithMultiAssetSupport.AccessControlMode.MANUAL_WHITELIST);
+        teller.setAccessControlMode(TellerWithMultiAssetSupport.AccessControlMode.DISABLED);
 
-        address[] memory whitelist = new address[](1);
-        whitelist[0] = config.atomicSolver;
-        teller.updateManualWhitelist(whitelist, true);
+        // teller.setAccessControlMode(TellerWithMultiAssetSupport.AccessControlMode.MANUAL_WHITELIST);
+
+        // address[] memory whitelist = new address[](1);
+        // whitelist[0] = config.atomicSolver;
+        // teller.updateManualWhitelist(whitelist, true);
 
         // add the base asset by default for all configurations
         teller.addAsset(ERC20(config.base));
@@ -43,16 +45,22 @@ contract TellerSetup is BaseScript {
             string memory key = string(
                 abi.encodePacked(".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".rateProvider")
             );
-            bool isPeggedToBase = getChainConfigFile().readBool(
-                string(
-                    abi.encodePacked(
-                        ".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".isPeggedToBase"
+            bool isPeggedToBase = getChainConfigFile()
+                .readBool(
+                    string(
+                        abi.encodePacked(
+                            ".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".isPeggedToBase"
+                        )
                     )
-                )
-            );
+                );
             address rateProvider = getChainConfigFile().readAddress(key);
             teller.accountant().setRateProviderData(ERC20(config.assets[i]), isPeggedToBase, rateProvider);
         }
+        uint8 dec = config.boringVaultAndBaseDecimals; // e.g. 6 for USDC
+        uint256 scaledCap = config.depositCap * (10 ** uint256(dec));
+
+        // After you have the teller instance:
+        teller.setDepositCap(scaledCap);
         return address(teller);
     }
 }

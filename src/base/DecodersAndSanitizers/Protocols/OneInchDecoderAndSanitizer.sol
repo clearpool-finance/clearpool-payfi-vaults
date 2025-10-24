@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.22;
 
-import { BaseDecoderAndSanitizer, DecoderCustomTypes } from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {
+    BaseDecoderAndSanitizer,
+    DecoderCustomTypes
+} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 
 abstract contract OneInchDecoderAndSanitizer is BaseDecoderAndSanitizer {
     //============================== ERRORS ===============================
@@ -32,11 +35,7 @@ abstract contract OneInchDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc use uniswapV3Swap on OneInch
     // @tag packedArgs:bytes:packed arguments
-    function uniswapV3Swap(
-        uint256,
-        uint256,
-        uint256[] calldata pools
-    )
+    function uniswapV3Swap(uint256, uint256, uint256[] calldata pools)
         external
         pure
         returns (bytes memory addressesFound)

@@ -142,7 +142,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
         // Setup KYC for test users
         mockKeyring.setCredential(kycUser, TEST_POLICY_ID, true);
         mockKeyring.setCredential(address(this), TEST_POLICY_ID, true); // Test contract has KYC
-        // nonKycUser has no KYC by default
+            // nonKycUser has no KYC by default
 
         // Fund test users
         deal(address(WETH), kycUser, 100e18);
@@ -225,7 +225,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
         uint256 expected_shares = amount;
 
         assertApproxEqRel(
-            boringVault.balanceOf(address(this)), expected_shares, 0.000001e18, "Should have received expected shares"
+            boringVault.balanceOf(address(this)), expected_shares, 0.000_001e18, "Should have received expected shares"
         );
     }
 
@@ -399,9 +399,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
 
         // Share lock period is not set, so user can submit withdraw request immediately.
         AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
-            deadline: uint64(block.timestamp + 1 days),
-            offerAmount: uint96(shares),
-            inSolve: false
+            deadline: uint64(block.timestamp + 1 days), offerAmount: uint96(shares), inSolve: false
         });
         boringVault.approve(address(atomicQueue), shares);
         atomicQueue.updateAtomicRequest(boringVault, WETH, req.deadline, req.offerAmount);

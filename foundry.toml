@@ -27,17 +27,18 @@ sepolia_main = "${SEPOLIA_RPC_URL}"
 sei_devnet = "${SEI_DEVNET_RPC_URL}"
 op_sepolia = "${OP_SEPOLIA_RPC_URL}"
 poseidon = "${POSEIDON_RPC_URL}"
+plasma="${PLASMA_RPC_URL}"
+flare="${FLARE_RPC_URL}"
 
 
 [etherscan]
 mainnet = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
-plume = { key = "${PLUME_KEY}", url = "https://api.etherscan.io/api" }
 # polygon = { key = "${POLYGONSCAN_KEY}" }
 # bsc = { key = "${BSCSCAN_KEY}" }
 # avalanche = { key = "${SNOWTRACE_KEY}" }
 # arbitrum = { key = "${ARBISCAN_KEY}" }
 # optimism = { key = "${OPTIMISMSCAN_KEY}" }
-# base = { key = "${BASESCAN_KEY}" }
+base = { key = "${BASESCAN_KEY}" }
 
 [fmt]
 bracket_spacing = true

@@ -23,7 +23,8 @@ contract ERC20TransferDecoderAndSanitizer is BaseDecoderAndSanitizer {
         addressesFound = abi.encodePacked(to);
     }
 
-    // ─────────────────────────────── Guards ───────────────────────────────
+    // ─────────────────────────────── Guards
+    // ───────────────────────────────
 
     /// @dev Explicitly block transferFrom (and any other function not implemented in Base).
     function transferFrom(address, address, uint256) external pure returns (bytes memory) {

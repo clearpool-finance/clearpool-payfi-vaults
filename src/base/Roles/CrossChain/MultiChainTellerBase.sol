@@ -47,11 +47,7 @@ abstract contract MultiChainTellerBase is CrossChainTellerBase {
 
     mapping(uint32 => Chain) public selectorToChains;
 
-    constructor(
-        address _owner,
-        address _vault,
-        address _accountant
-    )
+    constructor(address _owner, address _vault, address _accountant)
         CrossChainTellerBase(_owner, _vault, _accountant)
     { }
 
@@ -125,11 +121,7 @@ abstract contract MultiChainTellerBase is CrossChainTellerBase {
      * @dev Callable by OWNER_ROLE.
      * @notice Allow messages to a chain.
      */
-    function allowMessagesToChain(
-        uint32 chainSelector,
-        address targetTeller,
-        uint64 messageGasLimit
-    )
+    function allowMessagesToChain(uint32 chainSelector, address targetTeller, uint64 messageGasLimit)
         external
         requiresAuth
     {

@@ -77,11 +77,7 @@ contract SendUln302Mock is SendUlnBase, SendLibBaseE2 {
 
     // ============================ Internal ===================================
 
-    function _quoteVerifier(
-        address _sender,
-        uint32 _dstEid,
-        WorkerOptions[] memory _options
-    )
+    function _quoteVerifier(address _sender, uint32 _dstEid, WorkerOptions[] memory _options)
         internal
         view
         override
@@ -90,10 +86,7 @@ contract SendUln302Mock is SendUlnBase, SendLibBaseE2 {
         return _quoteDVNs(_sender, _dstEid, _options);
     }
 
-    function _payVerifier(
-        Packet calldata _packet,
-        WorkerOptions[] memory _options
-    )
+    function _payVerifier(Packet calldata _packet, WorkerOptions[] memory _options)
         internal
         override
         returns (uint256 otherWorkerFees, bytes memory encodedPacket)
@@ -110,11 +103,7 @@ contract SendUln302Mock is SendUlnBase, SendLibBaseE2 {
         return _splitUlnOptions(_options);
     }
 
-    function send(
-        Packet calldata _packet,
-        bytes calldata _options,
-        bool _payInLzToken
-    )
+    function send(Packet calldata _packet, bytes calldata _options, bool _payInLzToken)
         public
         override
         returns (MessagingFee memory fee, bytes memory encodedPacket)

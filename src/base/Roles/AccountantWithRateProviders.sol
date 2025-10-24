@@ -401,9 +401,8 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
             uint256 timeElapsed = block.timestamp - lendingInfo._lastAccrualTime;
 
             // Calculate rate increase in 18 decimals
-            uint256 rateIncrease = uint256(accountantState._exchangeRate).mulDivDown(
-                lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
-            );
+            uint256 rateIncrease = uint256(accountantState._exchangeRate)
+                .mulDivDown(lendingInfo._lendingRate * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
             newRate = accountantState._exchangeRate + uint96(rateIncrease);
 
             // Interest accrued is only for actual deposits
@@ -517,8 +516,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
                 uint256 totalValueIn18 = vault.totalSupply().mulDivDown(newRate, ONE_SHARE);
                 uint256 totalValue = _changeDecimals(totalValueIn18, 18, decimals);
 
-                uint256 managementFees =
-                    totalValue.mulDivDown(accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS);
+                uint256 managementFees = totalValue.mulDivDown(
+                    accountantState._managementFee * timeElapsed, SECONDS_PER_YEAR * BASIS_POINTS
+                );
                 accountantState._feesOwedInBase += uint128(managementFees);
             }
             lendingInfo._lastAccrualTime = block.timestamp;

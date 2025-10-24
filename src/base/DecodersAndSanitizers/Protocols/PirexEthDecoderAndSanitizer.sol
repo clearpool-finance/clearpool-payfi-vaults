@@ -14,11 +14,7 @@ abstract contract PirexEthDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc Initiate redemption by burning pxETH in return for upxETH, will revert if receiver is not the boring vault
-    function initiateRedemption(
-        uint256 _assets,
-        address _receiver,
-        bool _shouldTriggerValidatorExit
-    )
+    function initiateRedemption(uint256 _assets, address _receiver, bool _shouldTriggerValidatorExit)
         external
         view
         returns (bytes memory)
@@ -29,11 +25,7 @@ abstract contract PirexEthDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc function to redeem E with UPXEth, will revert if receiver is not the boring vault
-    function redeemWithUpxEth(
-        uint256 _tokenId,
-        uint256 _assets,
-        address _receiver
-    )
+    function redeemWithUpxEth(uint256 _tokenId, uint256 _assets, address _receiver)
         external
         view
         returns (bytes memory)
