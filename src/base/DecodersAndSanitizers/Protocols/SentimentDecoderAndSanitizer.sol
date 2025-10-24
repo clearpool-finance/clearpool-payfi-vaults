@@ -20,10 +20,7 @@ abstract contract SentimentDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function dispatcher for all Sentiment protocol actions on the PositionManager contract.
     // @tag packedArgs:bytes:packed args are conditional based on the operation types including NewPosition, Deposit,
     // Borrow, Repay, Transfer, AddToken, or RemoveToken.
-    function process(
-        address position,
-        DecoderCustomTypes.Action calldata action
-    )
+    function process(address position, DecoderCustomTypes.Action calldata action)
         external
         view
         returns (bytes memory addressesFound)

@@ -3,10 +3,12 @@ pragma solidity 0.8.22;
 
 import { BaseDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import { PirexEthDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/PirexEthDecoderAndSanitizer.sol";
-import { LayerZeroOFTDecoderAndSanitizer } from
-    "src/base/DecodersAndSanitizers/Protocols/LayerZeroOFTDecoderAndSanitizer.sol";
-import { NativeWrapperDecoderAndSanitizer } from
-    "src/base/DecodersAndSanitizers/Protocols/NativeWrapperDecoderAndSanitizer.sol";
+import {
+    LayerZeroOFTDecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/Protocols/LayerZeroOFTDecoderAndSanitizer.sol";
+import {
+    NativeWrapperDecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/Protocols/NativeWrapperDecoderAndSanitizer.sol";
 import { ERC4626DecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/ERC4626DecoderAndSanitizer.sol";
 import { CurveDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/CurveDecoderAndSanitizer.sol";
 
@@ -22,10 +24,7 @@ contract SeiyanEthRebalanceDecoderAndSanitizer is
 
     constructor(address _boringVault) BaseDecoderAndSanitizer(_boringVault) { }
 
-    function deposit(
-        uint256,
-        address receiver
-    )
+    function deposit(uint256, address receiver)
         external
         view
         override(CurveDecoderAndSanitizer, ERC4626DecoderAndSanitizer)

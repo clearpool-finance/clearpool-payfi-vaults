@@ -7,11 +7,7 @@ import { BoringVault } from "../base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "../base/Roles/TellerWithMultiAssetSupport.sol";
 
 interface WarpRoute {
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId
-    )
+    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amountOrId)
         external
         payable
         returns (bytes32);
@@ -56,12 +52,7 @@ contract WarpRouteWrapper {
      * NOTE that the `depositAsset` can vary as the Teller can add new supported
      * assets.
      */
-    function depositAndBridge(
-        ERC20 depositAsset,
-        uint256 depositAmount,
-        uint256 minimumMint,
-        bytes32 recipient
-    )
+    function depositAndBridge(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint, bytes32 recipient)
         external
         payable
         returns (uint256 sharesMinted, bytes32 messageId)

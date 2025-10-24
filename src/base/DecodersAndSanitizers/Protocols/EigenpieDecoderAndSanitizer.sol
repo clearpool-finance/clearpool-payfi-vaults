@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.22;
 
-import { BaseDecoderAndSanitizer, DecoderCustomTypes } from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {
+    BaseDecoderAndSanitizer,
+    DecoderCustomTypes
+} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 
 abstract contract EigenpieDecoderAndSanitizer is BaseDecoderAndSanitizer {
     //============================== ERRORS ===============================
@@ -14,10 +17,7 @@ abstract contract EigenpieDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc queue withdrawals from Eigenpie
-    function userQueuingForWithdraw(
-        address asset,
-        uint256 mLRTamount
-    )
+    function userQueuingForWithdraw(address asset, uint256 mLRTamount)
         external
         pure
         virtual

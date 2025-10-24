@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.22;
 
-import { ERC20TransferDecoderAndSanitizer } from
-    "src/base/DecodersAndSanitizers/CustomDecoders/ERC20TransferDecoderAndSanitizer.sol";
+import {
+    ERC20TransferDecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/CustomDecoders/ERC20TransferDecoderAndSanitizer.sol";
 import { Script, console2 } from "@forge-std/Script.sol";
 
 /**

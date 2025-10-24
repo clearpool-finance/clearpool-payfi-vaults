@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.22;
 
-import { BaseDecoderAndSanitizer, DecoderCustomTypes } from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {
+    BaseDecoderAndSanitizer,
+    DecoderCustomTypes
+} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 
 abstract contract MorphoBlueDecoderAndSanitizer is BaseDecoderAndSanitizer {
     //============================== ERRORS ===============================
@@ -75,8 +78,9 @@ abstract contract MorphoBlueDecoderAndSanitizer is BaseDecoderAndSanitizer {
         pure
         returns (bytes memory addressesFound)
     {
-        addressesFound =
-            abi.encodePacked(params.loanToken, params.collateralToken, params.oracle, params.irm, onBehalf, receiver);
+        addressesFound = abi.encodePacked(
+            params.loanToken, params.collateralToken, params.oracle, params.irm, onBehalf, receiver
+        );
     }
 
     // @desc repay a borrow from morpho blue, will revert if the data is not empty

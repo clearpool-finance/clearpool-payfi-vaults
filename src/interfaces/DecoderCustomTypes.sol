@@ -297,7 +297,7 @@ contract DecoderCustomTypes {
     /// @dev Every operation except NewPosition requires that the caller must be an authz caller or owner
     enum Operation {
         NewPosition, // create2 a new position with a given type, no auth needed
-        // the following operations require msg.sender to be authorized
+            // the following operations require msg.sender to be authorized
         Exec, // execute arbitrary calldata on a position
         Deposit, // Add collateral to a given position
         Transfer, // transfer assets from the position to a external address
@@ -306,7 +306,6 @@ contract DecoderCustomTypes {
         Borrow, // increase position debt
         AddToken, // upsert collateral asset to position storage
         RemoveToken // remove collateral asset from position storage
-
     }
 
     /// @title Action

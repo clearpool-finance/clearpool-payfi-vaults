@@ -3,11 +3,15 @@ pragma solidity 0.8.22;
 
 import { BaseDecoderAndSanitizer } from "./BaseDecoderAndSanitizer.sol";
 import { NativeWrapperDecoderAndSanitizer } from "./Protocols/NativeWrapperDecoderAndSanitizer.sol";
-import { UniswapV3DecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/UniswapV3DecoderAndSanitizer.sol";
-import { MasterChefV3DecoderAndSanitizer } from
-    "src/base/DecodersAndSanitizers/Protocols/MasterChefV3DecoderAndSanitizer.sol";
-import { PendleRouterDecoderAndSanitizer } from
-    "src/base/DecodersAndSanitizers/Protocols/PendleRouterDecoderAndSanitizer.sol";
+import {
+    UniswapV3DecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/Protocols/UniswapV3DecoderAndSanitizer.sol";
+import {
+    MasterChefV3DecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/Protocols/MasterChefV3DecoderAndSanitizer.sol";
+import {
+    PendleRouterDecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/Protocols/PendleRouterDecoderAndSanitizer.sol";
 import { LevelDecoderAndSanitizer } from "./Protocols/LevelDecoderAndSanitizer.sol";
 import { ERC4626DecoderAndSanitizer } from "./Protocols/ERC4626DecoderAndSanitizer.sol";
 import { CurveDecoderAndSanitizer } from "./Protocols/CurveDecoderAndSanitizer.sol";
@@ -27,10 +31,7 @@ contract unifiETHDecoderAndSanitizer is
     AeraVaultDecoderAndSanitizer,
     MorphoPositionOracleDecoderAndSanitizer
 {
-    constructor(
-        address _boringVault,
-        address _uniswapV3NonFungiblePositionManager
-    )
+    constructor(address _boringVault, address _uniswapV3NonFungiblePositionManager)
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
         BaseDecoderAndSanitizer(_boringVault)
     { }
@@ -53,10 +54,7 @@ contract unifiETHDecoderAndSanitizer is
      * @notice Curve, BalancerV2, and ERC4626 all specify a `deposit(uint256, address receiver)`,
      *         all cases are handled the same way.
      */
-    function deposit(
-        uint256,
-        address receiver
-    )
+    function deposit(uint256, address receiver)
         external
         pure
         override(CurveDecoderAndSanitizer, BalancerV2DecoderAndSanitizer, ERC4626DecoderAndSanitizer)

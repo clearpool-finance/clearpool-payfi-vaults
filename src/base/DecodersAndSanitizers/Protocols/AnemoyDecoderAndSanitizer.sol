@@ -7,11 +7,7 @@ abstract contract AnemoyDecoderAndSanitizer is BaseDecoderAndSanitizer {
     error AnemoyDecoderAndSanitizer__MustBeBoringVault();
 
     // @desc Request a deposit into the Anemoy Vault, will revert if controller or owner is not the boring vault
-    function requestDeposit(
-        uint256 assets,
-        address controller,
-        address owner
-    )
+    function requestDeposit(uint256 assets, address controller, address owner)
         external
         view
         returns (bytes memory addressesFound)
@@ -24,11 +20,7 @@ abstract contract AnemoyDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc Mint shares into the Anemoy Vault, will revert if controller or owner is not the boring vault
-    function mint(
-        uint256 shares,
-        address receiver,
-        address controller
-    )
+    function mint(uint256 shares, address receiver, address controller)
         external
         view
         returns (bytes memory addressesFound)
@@ -40,11 +32,7 @@ abstract contract AnemoyDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc Request a redeem from the Anemoy Vault, will revert if controller or owner is not the boring vault
-    function requestRedeem(
-        uint256 shares,
-        address controller,
-        address owner
-    )
+    function requestRedeem(uint256 shares, address controller, address owner)
         external
         view
         returns (bytes memory addressesFound)
@@ -56,11 +44,7 @@ abstract contract AnemoyDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc Withdraw from the Anemoy Vault, will revert if controller or owner is not the boring vault
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address controller
-    )
+    function withdraw(uint256 assets, address receiver, address controller)
         external
         view
         returns (bytes memory addressesFound)

@@ -41,11 +41,7 @@ abstract contract OPStandardL2BridgeDecoderAndSanitizer is BaseDecoderAndSanitiz
     // @desc bridge native token using OP standard L2 bridge
     // @tag to:address:receiver of the bridged tokens
     // @tag extraData:bytes:extra data, depending on the message, can get from a test tx
-    function bridgeETHTo(
-        address _to,
-        uint32 _minGasLimit,
-        bytes calldata _extraData
-    )
+    function bridgeETHTo(address _to, uint32 _minGasLimit, bytes calldata _extraData)
         external
         pure
         returns (bytes memory addressesFound)

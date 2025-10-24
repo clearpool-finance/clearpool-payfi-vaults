@@ -71,9 +71,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         /// 3. Withdrawal request - LP
         vm.startPrank(alice);
         AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
-            deadline: uint64(block.timestamp + 1 days),
-            offerAmount: uint96(aliceShares),
-            inSolve: false
+            deadline: uint64(block.timestamp + 1 days), offerAmount: uint96(aliceShares), inSolve: false
         });
         boringVault.approve(address(atomicQueue), aliceShares);
         atomicQueue.updateAtomicRequest(boringVault, WETH, req.deadline, req.offerAmount);
@@ -128,9 +126,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         /// Wrong request
         vm.startPrank(alice);
         AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
-            deadline: uint64(block.timestamp + 1 days),
-            offerAmount: uint96(aliceShares),
-            inSolve: false
+            deadline: uint64(block.timestamp + 1 days), offerAmount: uint96(aliceShares), inSolve: false
         });
         boringVault.approve(address(atomicQueue), aliceShares);
         atomicQueue.updateAtomicRequest(boringVault, ERC20(address(69)), req.deadline, req.offerAmount);
@@ -149,9 +145,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         /// Right request
         vm.startPrank(alice);
         req = AtomicQueue.AtomicRequest({
-            deadline: uint64(block.timestamp + 1 days),
-            offerAmount: uint96(aliceShares),
-            inSolve: false
+            deadline: uint64(block.timestamp + 1 days), offerAmount: uint96(aliceShares), inSolve: false
         });
         boringVault.approve(address(atomicQueue), aliceShares);
         atomicQueue.updateAtomicRequest(boringVault, ERC20(WETH), req.deadline, req.offerAmount);
@@ -183,9 +177,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         // Create withdrawal request
         vm.startPrank(alice);
         AtomicQueue.AtomicRequest memory req = AtomicQueue.AtomicRequest({
-            deadline: uint64(block.timestamp + 1 days),
-            offerAmount: uint96(aliceShares),
-            inSolve: false
+            deadline: uint64(block.timestamp + 1 days), offerAmount: uint96(aliceShares), inSolve: false
         });
         boringVault.approve(address(atomicQueue), aliceShares);
         atomicQueue.updateAtomicRequest(boringVault, WETH, req.deadline, req.offerAmount);

@@ -18,11 +18,7 @@ abstract contract swBTCDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // (boringVault)
     // @tag asset:address
     // @tag account:address
-    function completeWithdraw(
-        address asset,
-        address account,
-        uint256
-    )
+    function completeWithdraw(address asset, address account, uint256)
         external
         pure
         virtual
@@ -33,11 +29,7 @@ abstract contract swBTCDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc function to request the withdraw of WBTC from swBTC withdraw queue, decode the asset (WBTC)
     // @tag asset:address
-    function requestWithdraw(
-        address asset,
-        uint96 shares,
-        bool allowThirdPartyToComplete
-    )
+    function requestWithdraw(address asset, uint96 shares, bool allowThirdPartyToComplete)
         external
         pure
         virtual

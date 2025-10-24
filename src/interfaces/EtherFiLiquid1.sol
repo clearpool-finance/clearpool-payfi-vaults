@@ -110,27 +110,13 @@ interface EtherFiLiquid1 {
     function maxRedeem(address owner) external view returns (uint256);
     function maxWithdraw(address owner) external view returns (uint256);
     function mint(uint256 shares, address receiver) external returns (uint256 assets);
-    function multiAssetDeposit(
-        address depositAsset,
-        uint256 assets,
-        address receiver
-    )
-        external
-        returns (uint256 shares);
+    function multiAssetDeposit(address depositAsset, uint256 assets, address receiver) external returns (uint256 shares);
     function multicall(bytes[] memory data) external;
     function name() external view returns (string memory);
     function nonces(address) external view returns (uint256);
     function onERC721Received(address, address, uint256, bytes memory) external returns (bytes4);
     function owner() external view returns (address);
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    )
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;
     function previewDeposit(uint256 assets) external view returns (uint256 shares);
     function previewMint(uint256 shares) external view returns (uint256 assets);

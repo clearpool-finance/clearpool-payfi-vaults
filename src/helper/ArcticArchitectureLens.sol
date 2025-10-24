@@ -15,10 +15,7 @@ contract ArcticArchitectureLens {
      * @return asset The ERC20 asset, `assets` is given in terms of.
      * @return assets The total assets held in the vault.
      */
-    function totalAssets(
-        BoringVault boringVault,
-        AccountantWithRateProviders accountant
-    )
+    function totalAssets(BoringVault boringVault, AccountantWithRateProviders accountant)
         external
         view
         returns (ERC20 asset, uint256 assets)
@@ -71,11 +68,7 @@ contract ArcticArchitectureLens {
      * @param accountant The AccountantWithRateProviders contract.
      * @return assets The balance of assets for the account.
      */
-    function balanceOfInAssets(
-        address account,
-        BoringVault boringVault,
-        AccountantWithRateProviders accountant
-    )
+    function balanceOfInAssets(address account, BoringVault boringVault, AccountantWithRateProviders accountant)
         external
         view
         returns (uint256 assets)

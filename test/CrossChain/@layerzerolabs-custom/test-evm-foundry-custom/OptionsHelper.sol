@@ -53,10 +53,7 @@ contract OptionsHelper {
         return this.decodeLzComposeOption(option);
     }
 
-    function _executorOptionExists(
-        bytes memory _options,
-        uint8 _executorOptionType
-    )
+    function _executorOptionExists(bytes memory _options, uint8 _executorOptionType)
         internal
         view
         returns (bool exist)
@@ -64,10 +61,7 @@ contract OptionsHelper {
         (exist,) = _getExecutorOptionByOptionType(_options, _executorOptionType);
     }
 
-    function _getExecutorOptionByOptionType(
-        bytes memory _options,
-        uint8 _executorOptionType
-    )
+    function _getExecutorOptionByOptionType(bytes memory _options, uint8 _executorOptionType)
         internal
         view
         returns (bool exist, bytes memory option)
@@ -84,10 +78,7 @@ contract OptionsHelper {
         }
     }
 
-    function nextExecutorOption(
-        bytes calldata _options,
-        uint256 _cursor
-    )
+    function nextExecutorOption(bytes calldata _options, uint256 _cursor)
         external
         pure
         returns (uint8 optionType, bytes calldata option, uint256 cursor)

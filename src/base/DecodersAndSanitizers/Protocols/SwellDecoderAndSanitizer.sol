@@ -7,12 +7,7 @@ abstract contract SwellDecoderAndSanitizer is BaseDecoderAndSanitizer {
     error SwellDecoderAndSanitizer__MustWithdrawToBoringVault();
 
     // @desc function to claim rewards from Swell
-    function claim(
-        address[] calldata,
-        address[] calldata,
-        uint256[] calldata,
-        bytes32[][] calldata
-    )
+    function claim(address[] calldata, address[] calldata, uint256[] calldata, bytes32[][] calldata)
         external
         pure
         virtual
@@ -31,11 +26,7 @@ abstract contract SwellDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc function to withdraw WSWELL by lock timestamp, check swell contract for rates, will revert if account is
     // not the boring vault
-    function withdrawToByLockTimestamp(
-        address account,
-        uint256 lockTimestamp,
-        bool allowRemainderLoss
-    )
+    function withdrawToByLockTimestamp(address account, uint256 lockTimestamp, bool allowRemainderLoss)
         external
         view
         virtual
@@ -49,11 +40,7 @@ abstract contract SwellDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc function to withdraw WSWELL by multiple lock timestamps, check swell contract for rates, will revert if
     // account is not the boring vault
-    function withdrawToByLockTimestamps(
-        address account,
-        uint256[] calldata lockTimestamp,
-        bool allowRemainderLoss
-    )
+    function withdrawToByLockTimestamps(address account, uint256[] calldata lockTimestamp, bool allowRemainderLoss)
         external
         view
         virtual

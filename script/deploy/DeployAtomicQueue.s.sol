@@ -8,7 +8,7 @@ import { ConfigReader } from "../ConfigReader.s.sol";
 
 using StdJson for string;
 
-bytes32 constant SALT = 0x5bac910c72debe007ea99a000000000000000000000000000000000000000000;
+bytes32 constant SALT = 0x5bac910c72debe007ed99c000000000000000000000000000000000000000000;
 
 contract DeployAtomicQueue is BaseScript {
     function run() public broadcast returns (AtomicQueue atomicQueue) {

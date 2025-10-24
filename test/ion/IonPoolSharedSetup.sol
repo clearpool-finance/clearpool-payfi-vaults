@@ -171,8 +171,8 @@ contract IonPoolSharedSetup is Test, MainnetAddresses {
      */
     function _generateMerkleTree(ManageLeaf[] memory manageLeafs) internal view returns (bytes32[][] memory tree) {
         uint256 leafsLength = manageLeafs.length; // number of transactions
-        // 2D array, array of arrays
-        // Why is it a 2d array tho?
+            // 2D array, array of arrays
+            // Why is it a 2d array tho?
         bytes32[][] memory _leafs = new bytes32[][](1);
 
         // First array in the 2D array has all of the encoded leafs.
@@ -236,10 +236,7 @@ contract IonPoolSharedSetup is Test, MainnetAddresses {
         }
     }
 
-    function _getProofsUsingTree(
-        ManageLeaf[] memory manageLeafs,
-        bytes32[][] memory tree
-    )
+    function _getProofsUsingTree(ManageLeaf[] memory manageLeafs, bytes32[][] memory tree)
         internal
         view
         returns (bytes32[][] memory proofs)

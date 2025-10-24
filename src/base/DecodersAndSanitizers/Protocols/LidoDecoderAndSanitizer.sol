@@ -24,10 +24,7 @@ abstract contract LidoDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc request withdrawals
     // @tag owner:address:owner
-    function requestWithdrawals(
-        uint256[] calldata,
-        address _owner
-    )
+    function requestWithdrawals(uint256[] calldata, address _owner)
         external
         pure
         virtual
@@ -43,10 +40,7 @@ abstract contract LidoDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc claim multiple withdrawals
-    function claimWithdrawals(
-        uint256[] calldata,
-        uint256[] calldata
-    )
+    function claimWithdrawals(uint256[] calldata, uint256[] calldata)
         external
         pure
         virtual
@@ -56,14 +50,7 @@ abstract contract LidoDecoderAndSanitizer is BaseDecoderAndSanitizer {
         return addressesFound;
     }
 
-    function depositERC20To(
-        address l1Token_,
-        address l2Token_,
-        address to_,
-        uint256,
-        uint32,
-        bytes calldata
-    )
+    function depositERC20To(address l1Token_, address l2Token_, address to_, uint256, uint32, bytes calldata)
         external
         pure
         virtual

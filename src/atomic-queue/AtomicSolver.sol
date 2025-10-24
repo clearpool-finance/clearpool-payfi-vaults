@@ -29,14 +29,7 @@ contract AtomicSolver is IAtomicSolver, Owned, ERC721Holder {
         approvedToCallFinishSolve[who] = state;
     }
 
-    function finishSolve(
-        bytes calldata runData,
-        address initiator,
-        ERC20,
-        ERC20 want,
-        uint256,
-        uint256 assetsForWant
-    )
+    function finishSolve(bytes calldata runData, address initiator, ERC20, ERC20 want, uint256, uint256 assetsForWant)
         external
     {
         require(initiator == owner);
@@ -52,11 +45,7 @@ contract AtomicSolver is IAtomicSolver, Owned, ERC721Holder {
     }
 
     // fn to make multiple external calls
-    function doStuff(
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata ammo
-    )
+    function doStuff(address[] calldata targets, uint256[] calldata values, bytes[] calldata ammo)
         external
         payable
         onlyOwner

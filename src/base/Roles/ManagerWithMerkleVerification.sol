@@ -179,7 +179,9 @@ contract ManagerWithMerkleVerification is Auth {
     )
         external
     {
-        if (msg.sender != address(vault)) revert ManagerWithMerkleVerification__OnlyCallableByBoringVault();
+        if (msg.sender != address(vault)) {
+            revert ManagerWithMerkleVerification__OnlyCallableByBoringVault();
+        }
 
         flashLoanIntentHash = keccak256(userData);
         performingFlashLoan = true;
@@ -202,7 +204,9 @@ contract ManagerWithMerkleVerification is Auth {
     )
         external
     {
-        if (msg.sender != address(balancerVault)) revert ManagerWithMerkleVerification__OnlyCallableByBalancerVault();
+        if (msg.sender != address(balancerVault)) {
+            revert ManagerWithMerkleVerification__OnlyCallableByBalancerVault();
+        }
         if (!performingFlashLoan) revert ManagerWithMerkleVerification__FlashLoanNotInProgress();
 
         // Validate userData using intentHash.
@@ -224,9 +228,8 @@ contract ManagerWithMerkleVerification is Auth {
                 uint256[] memory values
             ) = abi.decode(userData, (bytes32[][], address[], address[], bytes[], uint256[]));
 
-            ManagerWithMerkleVerification(address(this)).manageVaultWithMerkleVerification(
-                manageProofs, decodersAndSanitizers, targets, data, values
-            );
+            ManagerWithMerkleVerification(address(this))
+                .manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, data, values);
         }
 
         // Transfer tokens back to balancer.
@@ -258,8 +261,7 @@ contract ManagerWithMerkleVerification is Auth {
     {
         // Use address decoder to get addresses in call data.
         bytes memory packedArgumentAddresses = abi.decode(decoderAndSanitizer.functionStaticCall(targetData), (bytes));
-        if (
-            !_verifyManageProof(
+        if (!_verifyManageProof(
                 currentManageRoot,
                 manageProof,
                 target,
@@ -267,8 +269,7 @@ contract ManagerWithMerkleVerification is Auth {
                 value,
                 bytes4(targetData),
                 packedArgumentAddresses
-            )
-        ) {
+            )) {
             revert ManagerWithMerkleVerification__FailedToVerifyManageProof(target, targetData, value);
         }
     }
