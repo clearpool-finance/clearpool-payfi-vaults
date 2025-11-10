@@ -43,6 +43,9 @@ contract DeployRolesAuthority is BaseScript {
     //     - teller.pause()
     //     - accountant.pause()
     //     - manager.pause()
+    // 7. OPERATOR_ROLE
+    //     - manager.setManageRoot()
+    //     - assigned to BROADCASTER (deployer)
     // --- Public Functions ---
     // 1. teller.deposit()
     // 2. teller.bridge()
@@ -53,6 +56,7 @@ contract DeployRolesAuthority is BaseScript {
     // TELLER_ROLE -> TELLER (contract)
     // UPDATE_EXCHANGE_RATE_ROLE -> EXCHANGE_RATE_BOT (EOA) & OWNER (multisig) & Third-paty manager (i.e Cicada)
     // PAUSER_ROLE -> PAUSER (EOA) & OWNER (multisig)
+    // OPERATOR_ROLE -> BROADCASTER (deployer EOA)
     function deploy(ConfigReader.Config memory config) public virtual override broadcast returns (address) {
         // Require config Values
         require(config.boringVault.code.length != 0, "boringVault must have code");
@@ -170,6 +174,10 @@ contract DeployRolesAuthority is BaseScript {
             PAUSER_ROLE, config.manager, ManagerWithMerkleVerification.unpause.selector, true
         );
 
+        rolesAuthority.setRoleCapability(
+            OPERATOR_ROLE, config.manager, ManagerWithMerkleVerification.setManageRoot.selector, true
+        );
+
         // --- Set Public Capabilities ---
         rolesAuthority.setPublicCapability(config.teller, TellerWithMultiAssetSupport.deposit.selector, true);
         rolesAuthority.setPublicCapability(config.teller, CrossChainTellerBase.bridge.selector, true);
@@ -193,6 +201,8 @@ contract DeployRolesAuthority is BaseScript {
         if (config.pauser != address(0)) {
             rolesAuthority.setUserRole(config.pauser, PAUSER_ROLE, true);
         }
+
+        rolesAuthority.setUserRole(broadcaster, OPERATOR_ROLE, true);
 
         // Post Deploy Checks
         require(
@@ -275,6 +285,13 @@ contract DeployRolesAuthority is BaseScript {
         if (config.pauser != address(0)) {
             _validatePauserRole(config, rolesAuthority, config.pauser);
         }
+
+        // Operator Role
+        require(rolesAuthority.doesUserHaveRole(broadcaster, OPERATOR_ROLE), "broadcaster should have OPERATOR_ROLE");
+        require(
+            rolesAuthority.canCall(broadcaster, config.manager, ManagerWithMerkleVerification.setManageRoot.selector),
+            "broadcaster should be able to call manager.setManageRoot"
+        );
 
         return address(rolesAuthority);
     }

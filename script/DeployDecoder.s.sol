@@ -9,18 +9,26 @@ import {
     AaveV3DecoderAndSanitizerImpl
 } from "src/base/DecodersAndSanitizers/CustomDecoders/AaveV3DecoderAndSanitizerImpl.sol";
 import {
-    BoringVaultDecoderAndSanitizerImpl
-} from "src/base/DecodersAndSanitizers/CustomDecoders/BoringVaultDecoderAndSanitizerImpl.sol";
+    TellerDecoderAndSanitizerImpl
+} from "src/base/DecodersAndSanitizers/CustomDecoders/TellerDecoderAndSanitizerImpl.sol";
+import {
+    AtomicQueueDecoderAndSanitizerImpl
+} from "src/base/DecodersAndSanitizers/CustomDecoders/AtomicQueueDecoderAndSanitizerImpl.sol";
+import {
+    CompoundV3DecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/CustomDecoders/CompoundV3DecoderAndSanitizer.sol";
 
 /**
  * Usage:
- * DECODER_KIND=ERC20 forge script script/deploy/DeployDecoder.s.sol:DeployDecoder ...
- * DECODER_KIND=AAVE  forge script script/deploy/DeployDecoder.s.sol:DeployDecoder ...
+ * DECODER_KIND=ERC20         forge script script/DeployDecoder.s.sol:DeployDecoder ...
+ * DECODER_KIND=AAVE          forge script script/DeployDecoder.s.sol:DeployDecoder ...
+ * DECODER_KIND=TELLER        forge script script/DeployDecoder.s.sol:DeployDecoder ...
+ * DECODER_KIND=ATOMIC_QUEUE  forge script script/DeployDecoder.s.sol:DeployDecoder ...
  *
  * Required env:
  *   PRIVATE_KEY
  *   BORING_VAULT
- *   DECODER_KIND in { ERC20, AAVE }
+ *   DECODER_KIND in { ERC20, AAVE, TELLER, ATOMIC_QUEUE, COMPOUND_V3 }
  */
 contract DeployDecoder is Script {
     function run() external {
@@ -36,9 +44,15 @@ contract DeployDecoder is Script {
         } else if (_eq(kind, "AAVE")) {
             AaveV3DecoderAndSanitizerImpl dec = new AaveV3DecoderAndSanitizerImpl(boringVault);
             console2.log("AaveV3DecoderAndSanitizer deployed at:", address(dec));
-        } else if (_eq(kind, "BORING_VAULT")) {
-            BoringVaultDecoderAndSanitizerImpl dec = new BoringVaultDecoderAndSanitizerImpl(boringVault);
-            console2.log("BoringVaultDecoderAndSanitizer deployed at:", address(dec));
+        } else if (_eq(kind, "TELLER")) {
+            TellerDecoderAndSanitizerImpl dec = new TellerDecoderAndSanitizerImpl(boringVault);
+            console2.log("TellerDecoderAndSanitizer deployed at:", address(dec));
+        } else if (_eq(kind, "ATOMIC_QUEUE")) {
+            AtomicQueueDecoderAndSanitizerImpl dec = new AtomicQueueDecoderAndSanitizerImpl(boringVault);
+            console2.log("AtomicQueueDecoderAndSanitizer deployed at:", address(dec));
+        } else if (_eq(kind, "COMPOUND_V3")) {
+            CompoundV3DecoderAndSanitizer dec = new CompoundV3DecoderAndSanitizer(boringVault);
+            console2.log("CompoundV3DecoderAndSanitizer deployed at:", address(dec));
         } else {
             revert("Unsupported DECODER_KIND");
         }
