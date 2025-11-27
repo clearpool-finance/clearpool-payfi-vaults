@@ -38,7 +38,10 @@ contract EarnETHSwellDecoderAndSanitizer is
     VelodromeDecoderAndSanitizer,
     LayerZeroOFTDecoderAndSanitizer
 {
-    constructor(address _boringVault, address _velodromeNonFungiblePositionManager)
+    constructor(
+        address _boringVault,
+        address _velodromeNonFungiblePositionManager
+    )
         BaseDecoderAndSanitizer(_boringVault)
         VelodromeDecoderAndSanitizer(_velodromeNonFungiblePositionManager)
     { }

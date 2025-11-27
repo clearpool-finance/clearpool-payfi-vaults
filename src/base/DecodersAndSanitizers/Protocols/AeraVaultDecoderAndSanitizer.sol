@@ -42,7 +42,10 @@ abstract contract AeraVaultDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // aspects of the vault
     // @tag guardian:address:the address of the guardian
     // @tag feeRecipient:address:the address of the fee recipient
-    function setGuardianAndFeeRecipient(address guardian, address feeRecipient)
+    function setGuardianAndFeeRecipient(
+        address guardian,
+        address feeRecipient
+    )
         external
         pure
         returns (bytes memory addressesFound)

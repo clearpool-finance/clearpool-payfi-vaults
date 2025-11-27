@@ -20,7 +20,11 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
     event MessageSent(bytes32 messageId, uint256 shareAmount, address to);
     event MessageReceived(bytes32 messageId, uint256 shareAmount, address to);
 
-    constructor(address _owner, address _vault, address _accountant)
+    constructor(
+        address _owner,
+        address _vault,
+        address _accountant
+    )
         TellerWithMultiAssetSupport(_owner, _vault, _accountant)
     { }
 
@@ -31,7 +35,12 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
      * @param minimumMint minimum required shares to receive
      * @param data Bridge Data
      */
-    function depositAndBridge(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint, BridgeData calldata data)
+    function depositAndBridge(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        BridgeData calldata data
+    )
         external
         payable
         requiresAuth
@@ -58,7 +67,10 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
      * @param shareAmount to bridge
      * @param data bridge data
      */
-    function bridge(uint256 shareAmount, BridgeData calldata data)
+    function bridge(
+        uint256 shareAmount,
+        BridgeData calldata data
+    )
         public
         payable
         requiresAuth

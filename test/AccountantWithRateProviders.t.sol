@@ -726,7 +726,7 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
             uint256 expectedRate = 1e18 + (1e18 * lendingRate * day * 1 days) / (10_000 * 365 days);
 
             console.log("   Day %d - Rate: %d, Expected: %d", day, currentRate, expectedRate);
-            assertApproxEqRel(currentRate, expectedRate, 0.000_01e18, "Daily simple interest accuracy");
+            assertApproxEqRel(currentRate, expectedRate, 0.00001e18, "Daily simple interest accuracy");
         }
 
         // Test 2: Annual calculation

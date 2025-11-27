@@ -245,7 +245,11 @@ contract TestHelperOz5 is Test, OptionsHelper {
      * @param _oappNum The number of OApps to set up.
      * @return oapps An array of addresses for the deployed OApps.
      */
-    function setupOApps(bytes memory _oappCreationCode, uint8 _startEid, uint8 _oappNum)
+    function setupOApps(
+        bytes memory _oappCreationCode,
+        uint8 _startEid,
+        uint8 _oappNum
+    )
         public
         returns (address[] memory oapps)
     {
@@ -372,12 +376,17 @@ contract TestHelperOz5 is Test, OptionsHelper {
         (uint256 gas, uint256 value) = OptionsHelper._parseExecutorLzReceiveOption(_options);
 
         Origin memory origin = Origin(_packetBytes.srcEid(), _packetBytes.sender(), _packetBytes.nonce());
-        endpoint.lzReceive{
-            value: value, gas: gas
-        }(origin, _packetBytes.receiverB20(), _packetBytes.guid(), _packetBytes.message(), bytes(""));
+        endpoint.lzReceive{ value: value, gas: gas }(
+            origin, _packetBytes.receiverB20(), _packetBytes.guid(), _packetBytes.message(), bytes("")
+        );
     }
 
-    function lzCompose(bytes calldata _packetBytes, bytes memory _options, bytes32 _guid, address _composer)
+    function lzCompose(
+        bytes calldata _packetBytes,
+        bytes memory _options,
+        bytes32 _guid,
+        address _composer
+    )
         external
         payable
     {

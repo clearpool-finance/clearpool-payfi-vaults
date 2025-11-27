@@ -89,7 +89,10 @@ interface IUNSTETH {
         view
         returns (WithdrawalRequestStatus[] memory statuses);
 
-    function requestWithdrawals(uint256[] calldata _amounts, address _owner)
+    function requestWithdrawals(
+        uint256[] calldata _amounts,
+        address _owner
+    )
         external
         returns (uint256[] memory requestIds);
 
@@ -107,12 +110,19 @@ interface IUNSTETH {
 
     function getLastCheckpointIndex() external view returns (uint256);
 
-    function findCheckpointHints(uint256[] memory requestIds, uint256 firstIndex, uint256 lastIndex)
+    function findCheckpointHints(
+        uint256[] memory requestIds,
+        uint256 firstIndex,
+        uint256 lastIndex
+    )
         external
         view
         returns (uint256[] memory);
 
-    function getClaimableEther(uint256[] memory requestIds, uint256[] memory hints)
+    function getClaimableEther(
+        uint256[] memory requestIds,
+        uint256[] memory hints
+    )
         external
         view
         returns (uint256[] memory);

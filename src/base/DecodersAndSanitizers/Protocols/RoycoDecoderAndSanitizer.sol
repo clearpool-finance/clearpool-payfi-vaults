@@ -32,7 +32,11 @@ abstract contract RoycoDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc function to claim rewards from a Royco recipe vault, weirollWallet must be owned by boringVault
     // @tag incentiveToken:address:address of the incentive token
     // @tag to:address:address of the recipient of incentiveToken
-    function claim(address weirollWallet, address incentiveToken, address to)
+    function claim(
+        address weirollWallet,
+        address incentiveToken,
+        address to
+    )
         external
         view
         returns (bytes memory addressesFound)

@@ -51,7 +51,12 @@ abstract contract OAppAuthSender is OAppAuthCore {
      *      - nativeFee: The native fee for the message.
      *      - lzTokenFee: The LZ token fee for the message.
      */
-    function _quote(uint32 _dstEid, bytes memory _message, bytes memory _options, bool _payInLzToken)
+    function _quote(
+        uint32 _dstEid,
+        bytes memory _message,
+        bytes memory _options,
+        bool _payInLzToken
+    )
         internal
         view
         virtual
@@ -93,9 +98,9 @@ abstract contract OAppAuthSender is OAppAuthCore {
         if (_fee.lzTokenFee > 0) _payLzToken(_fee.lzTokenFee);
 
         // solhint-disable-next-line check-send-result
-        return endpoint.send{
-            value: messageValue
-        }(MessagingParams(_dstEid, _getPeerOrRevert(_dstEid), _message, _options, _fee.lzTokenFee > 0), _refundAddress);
+        return endpoint.send{ value: messageValue }(
+            MessagingParams(_dstEid, _getPeerOrRevert(_dstEid), _message, _options, _fee.lzTokenFee > 0), _refundAddress
+        );
     }
 
     /**

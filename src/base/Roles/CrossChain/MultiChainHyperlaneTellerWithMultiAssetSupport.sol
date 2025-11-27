@@ -54,7 +54,12 @@ contract MultiChainHyperlaneTellerWithMultiAssetSupport is MultiChainTellerBase 
     error MultiChainHyperlaneTellerWithMultiAssetSupport_InvalidBytes32Address(bytes32 _address);
     error MultiChainHyperlaneTellerWithMultiAssetSupport_ZeroAddressDestinationReceiver();
 
-    constructor(address _owner, address _vault, address _accountant, IMailbox _mailbox)
+    constructor(
+        address _owner,
+        address _vault,
+        address _accountant,
+        IMailbox _mailbox
+    )
         MultiChainTellerBase(_owner, _vault, _accountant)
     {
         mailbox = _mailbox;
@@ -167,14 +172,12 @@ contract MultiChainHyperlaneTellerWithMultiAssetSupport is MultiChainTellerBase 
         // configuration.
         bytes32 msgRecipient = _addressToBytes32(selectorToChains[data.chainSelector].targetTeller);
 
-        mailbox.dispatch{
-            value: msg.value
-        }(
+        mailbox.dispatch{ value: msg.value }(
             data.chainSelector, // must be `destinationDomain` on hyperlane
             msgRecipient, // must be the teller address left-padded to bytes32
             _payload,
             StandardHookMetadata.overrideGasLimit(data.messageGas), // Sets the refund address to msg.sender, sets
-                // `_msgValue` to zero
+            // `_msgValue` to zero
             hook
         );
     }

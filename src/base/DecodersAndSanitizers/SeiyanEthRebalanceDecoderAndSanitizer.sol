@@ -24,7 +24,10 @@ contract SeiyanEthRebalanceDecoderAndSanitizer is
 
     constructor(address _boringVault) BaseDecoderAndSanitizer(_boringVault) { }
 
-    function deposit(uint256, address receiver)
+    function deposit(
+        uint256,
+        address receiver
+    )
         external
         view
         override(CurveDecoderAndSanitizer, ERC4626DecoderAndSanitizer)

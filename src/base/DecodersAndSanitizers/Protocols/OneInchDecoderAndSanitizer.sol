@@ -35,7 +35,11 @@ abstract contract OneInchDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc use uniswapV3Swap on OneInch
     // @tag packedArgs:bytes:packed arguments
-    function uniswapV3Swap(uint256, uint256, uint256[] calldata pools)
+    function uniswapV3Swap(
+        uint256,
+        uint256,
+        uint256[] calldata pools
+    )
         external
         pure
         returns (bytes memory addressesFound)

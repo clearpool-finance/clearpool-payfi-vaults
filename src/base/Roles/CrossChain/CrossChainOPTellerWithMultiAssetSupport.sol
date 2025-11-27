@@ -25,7 +25,12 @@ contract CrossChainOPTellerWithMultiAssetSupport is CrossChainTellerBase {
     error CrossChainOPTellerWithMultiAssetSupport_NoFee();
     error CrossChainOPTellerWithMultiAssetSupport_GasOutOfBounds(uint32);
 
-    constructor(address _owner, address _vault, address _accountant, address _messenger)
+    constructor(
+        address _owner,
+        address _vault,
+        address _accountant,
+        address _messenger
+    )
         CrossChainTellerBase(_owner, _vault, _accountant)
     {
         messenger = ICrossDomainMessenger(_messenger);

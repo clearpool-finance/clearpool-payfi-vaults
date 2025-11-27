@@ -300,7 +300,7 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
         // There is a small change in total assets because the BoringVault prices weETH using the rate, but,
         // when the cellar prices weETH, there is some small rounding errors when getValue logic is used.
         assertApproxEqRel(
-            totalAssetsAfter, totalAssetsBefore, 0.000_000_01e18, "Total assets should not change after migration."
+            totalAssetsAfter, totalAssetsBefore, 0.00000001e18, "Total assets should not change after migration."
         );
 
         // When users withdraw, they receive BoringVault shares.
@@ -334,7 +334,10 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
         }
     }
 
-    function _getProofsUsingTree(ManageLeaf[] memory manageLeafs, bytes32[][] memory tree)
+    function _getProofsUsingTree(
+        ManageLeaf[] memory manageLeafs,
+        bytes32[][] memory tree
+    )
         internal
         pure
         returns (bytes32[][] memory proofs)

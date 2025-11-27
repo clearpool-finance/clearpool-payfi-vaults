@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "prettier": "prettier --write '**/*.{md,yml,yaml,ts,js}'",
+    "prettier": "prettier --write '**/*.{sol,md,yml,yaml,ts,js}'",
     "coverage": "./coverage.sh",
     "solhint": "solhint -w 0 'src/**/*.sol'",
     "slither": "slither src",
@@ -29,6 +29,7 @@
     "keccak256": "^1.0.6",
     "pocketbase": "^0.25.2",
     "prettier": "^3.3.2",
+    "prettier-plugin-solidity": "^1.4.1",
     "solhint": "^5.0.1"
   }
 }

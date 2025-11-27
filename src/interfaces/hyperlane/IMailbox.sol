@@ -47,12 +47,20 @@ interface IMailbox {
 
     function latestDispatchedId() external view returns (bytes32);
 
-    function dispatch(uint32 destinationDomain, bytes32 recipientAddress, bytes calldata messageBody)
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    )
         external
         payable
         returns (bytes32 messageId);
 
-    function quoteDispatch(uint32 destinationDomain, bytes32 recipientAddress, bytes calldata messageBody)
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    )
         external
         view
         returns (uint256 fee);

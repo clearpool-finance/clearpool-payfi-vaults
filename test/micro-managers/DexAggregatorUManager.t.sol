@@ -221,7 +221,10 @@ contract DexAggregatorUManagerTest is Test, MainnetAddresses {
         }
     }
 
-    function _getProofsUsingTree(ManageLeaf[] memory manageLeafs, bytes32[][] memory tree)
+    function _getProofsUsingTree(
+        ManageLeaf[] memory manageLeafs,
+        bytes32[][] memory tree
+    )
         internal
         view
         returns (bytes32[][] memory proofs)

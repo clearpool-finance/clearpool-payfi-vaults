@@ -30,7 +30,14 @@ abstract contract MellowDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc registerWithdrawal, will revert if the to address is not the boring vault
-    function registerWithdrawal(address to, uint256, uint256[] memory, uint256, uint256, bool)
+    function registerWithdrawal(
+        address to,
+        uint256,
+        uint256[] memory,
+        uint256,
+        uint256,
+        bool
+    )
         external
         view
         virtual
