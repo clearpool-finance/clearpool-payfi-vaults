@@ -24,7 +24,11 @@ abstract contract ThunderheadDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc Thunderhead function to burn, and redeem if possible with community code, will revert if to is not the
     // boring vault
-    function burnAndRedeemIfPossible(address to, uint256 amount, string calldata communityCode)
+    function burnAndRedeemIfPossible(
+        address to,
+        uint256 amount,
+        string calldata communityCode
+    )
         external
         view
         returns (bytes memory addressesFound)

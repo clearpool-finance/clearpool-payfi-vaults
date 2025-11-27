@@ -8,7 +8,7 @@ import { Test, stdStorage, StdStorage, stdError, console } from "@forge-std/Test
 contract RateMath is Test {
     using FixedPointMathLib for uint256;
 
-    uint256 constant ACCEPTED_DELTA_PERCENT_OUT_OF_FAVOR = 0.000_015e18;
+    uint256 constant ACCEPTED_DELTA_PERCENT_OUT_OF_FAVOR = 0.000015e18;
     uint256 constant ACCEPTED_DELTA_PERCENT_IN_FAVOR = 0.01e18;
 
     // keep some state variables that each test can change according to the scenario it's testing
@@ -25,7 +25,11 @@ contract RateMath is Test {
     // quote rate returned by rate provider
     uint256 quoteRate;
 
-    function boundValues(uint256 depositAmount, uint256 startQuoteRate, uint256 startExchangeRate)
+    function boundValues(
+        uint256 depositAmount,
+        uint256 startQuoteRate,
+        uint256 startExchangeRate
+    )
         internal
         returns (uint256 _depositAmount, uint256 _quoteRate, uint256 _exchangeRate)
     {

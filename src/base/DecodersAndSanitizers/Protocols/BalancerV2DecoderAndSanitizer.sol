@@ -17,7 +17,12 @@ abstract contract BalancerV2DecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Flash loan from the Balancer V2 protocol
     // @tag recipient:address:the address of the recipient
     // @tag tokens:bytes:packed bytes of every token in each address[] tokens input.
-    function flashLoan(address recipient, address[] calldata tokens, uint256[] calldata, bytes calldata)
+    function flashLoan(
+        address recipient,
+        address[] calldata tokens,
+        uint256[] calldata,
+        bytes calldata
+    )
         external
         pure
         virtual

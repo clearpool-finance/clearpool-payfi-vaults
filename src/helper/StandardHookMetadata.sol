@@ -99,7 +99,12 @@ library StandardHookMetadata {
      * @param _customMetadata Additional metadata to include in the standard hook metadata.
      * @return ABI encoded standard hook metadata.
      */
-    function formatMetadata(uint256 _msgValue, uint256 _gasLimit, address _refundAddress, bytes memory _customMetadata)
+    function formatMetadata(
+        uint256 _msgValue,
+        uint256 _gasLimit,
+        address _refundAddress,
+        bytes memory _customMetadata
+    )
         internal
         pure
         returns (bytes memory)

@@ -296,7 +296,11 @@ contract DeployRolesAuthority is BaseScript {
         return address(rolesAuthority);
     }
 
-    function _validatePauserRole(ConfigReader.Config memory config, RolesAuthority rolesAuthority, address user)
+    function _validatePauserRole(
+        ConfigReader.Config memory config,
+        RolesAuthority rolesAuthority,
+        address user
+    )
         internal
         view
     {

@@ -17,7 +17,10 @@ abstract contract EigenpieDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc queue withdrawals from Eigenpie
-    function userQueuingForWithdraw(address asset, uint256 mLRTamount)
+    function userQueuingForWithdraw(
+        address asset,
+        uint256 mLRTamount
+    )
         external
         pure
         virtual

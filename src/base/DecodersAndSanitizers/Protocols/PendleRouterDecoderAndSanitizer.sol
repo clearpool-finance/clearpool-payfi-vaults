@@ -18,7 +18,12 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @tag user:address:The user to mint to
     // @tag sy:address:The sy token to mint
     // @tag input:address:The input token to mint from
-    function mintSyFromToken(address user, address sy, uint256, DecoderCustomTypes.TokenInput calldata input)
+    function mintSyFromToken(
+        address user,
+        address sy,
+        uint256,
+        DecoderCustomTypes.TokenInput calldata input
+    )
         external
         pure
         virtual
@@ -35,7 +40,12 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function to mint Pendle Py using the Sy
     // @tag user:address:The user to mint to
     // @tag yt:address:The yt token to mint
-    function mintPyFromSy(address user, address yt, uint256, uint256)
+    function mintPyFromSy(
+        address user,
+        address yt,
+        uint256,
+        uint256
+    )
         external
         pure
         virtual
@@ -47,7 +57,13 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function to swap exact Pendle Pt for Pendle Yt
     // @tag user:address:The user to swap from
     // @tag market:address:The pendle market address
-    function swapExactPtForYt(address user, address market, uint256, uint256, DecoderCustomTypes.ApproxParams calldata)
+    function swapExactPtForYt(
+        address user,
+        address market,
+        uint256,
+        uint256,
+        DecoderCustomTypes.ApproxParams calldata
+    )
         external
         pure
         virtual
@@ -87,7 +103,13 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function to swap exact Pendle Yt for Pendle Pt
     // @tag user:address:The user to swap from
     // @tag market:address:The pendle market address
-    function swapExactYtForPt(address user, address market, uint256, uint256, DecoderCustomTypes.ApproxParams calldata)
+    function swapExactYtForPt(
+        address user,
+        address market,
+        uint256,
+        uint256,
+        DecoderCustomTypes.ApproxParams calldata
+    )
         external
         pure
         virtual
@@ -99,7 +121,13 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function to add Pendle liquidity with Sy and Pt
     // @tag user:address:The user to add liquidity from
     // @tag market:address:The pendle market address
-    function addLiquidityDualSyAndPt(address user, address market, uint256, uint256, uint256)
+    function addLiquidityDualSyAndPt(
+        address user,
+        address market,
+        uint256,
+        uint256,
+        uint256
+    )
         external
         pure
         virtual
@@ -111,7 +139,13 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function to remove Pendle liquidity to Sy and Pt
     // @tag user:address:The user to remove liquidity from
     // @tag market:address:The pendle market address
-    function removeLiquidityDualSyAndPt(address user, address market, uint256, uint256, uint256)
+    function removeLiquidityDualSyAndPt(
+        address user,
+        address market,
+        uint256,
+        uint256,
+        uint256
+    )
         external
         pure
         virtual
@@ -123,7 +157,12 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc Function to redeem Pendle Py to Sy
     // @tag user:address:The user to redeem from
     // @tag yt:address:The yt token to redeem
-    function redeemPyToSy(address user, address yt, uint256, uint256)
+    function redeemPyToSy(
+        address user,
+        address yt,
+        uint256,
+        uint256
+    )
         external
         pure
         virtual
@@ -136,7 +175,12 @@ abstract contract PendleRouterDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @tag user:address:The user to redeem from
     // @tag sy:address:The sy token to redeem
     // @tag output:address:The token to redeem to
-    function redeemSyToToken(address user, address sy, uint256, DecoderCustomTypes.TokenOutput calldata output)
+    function redeemSyToToken(
+        address user,
+        address sy,
+        uint256,
+        DecoderCustomTypes.TokenOutput calldata output
+    )
         external
         pure
         virtual

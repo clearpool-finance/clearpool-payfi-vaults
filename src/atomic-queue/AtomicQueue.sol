@@ -136,7 +136,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param user the address of the user making the request
      * @param userRequest the request struct to validate
      */
-    function isAtomicRequestValid(ERC20 offer, address user, AtomicRequest calldata userRequest)
+    function isAtomicRequestValid(
+        ERC20 offer,
+        address user,
+        AtomicRequest calldata userRequest
+    )
         external
         view
         returns (bool)
@@ -179,7 +183,13 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param runData extra data that is passed back to solver when `finishSolve` is called
      * @param solver the address to make `finishSolve` callback to
      */
-    function solve(ERC20 offer, ERC20 want, address[] calldata users, bytes calldata runData, address solver)
+    function solve(
+        ERC20 offer,
+        ERC20 want,
+        address[] calldata users,
+        bytes calldata runData,
+        address solver
+    )
         external
         requiresAuth
         nonReentrant
@@ -204,7 +214,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @return assetsToOffer total offer tokens transferred to solver
      * @return assetsForWant total want tokens solver needs to provide
      */
-    function _prepareSolve(ERC20 offer, ERC20 want, address[] calldata users, address solver)
+    function _prepareSolve(
+        ERC20 offer,
+        ERC20 want,
+        address[] calldata users,
+        address solver
+    )
         internal
         returns (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts)
     {
@@ -275,7 +290,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param want the ERC20 want token to check for solvability
      * @param users an array of user addresses to check for solvability
      */
-    function viewSolveMetaData(ERC20 offer, ERC20 want, address[] calldata users)
+    function viewSolveMetaData(
+        ERC20 offer,
+        ERC20 want,
+        address[] calldata users
+    )
         external
         view
         returns (SolveMetaData[] memory metaData, uint256 totalAssetsForWant, uint256 totalAssetsToOffer)
@@ -368,7 +387,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
      * @param offerAmount the amount of offer tokens
      * @return wantAmount the calculated want amount
      */
-    function _calculateWantAmount(ERC20 offer, ERC20 want, uint256 offerAmount)
+    function _calculateWantAmount(
+        ERC20 offer,
+        ERC20 want,
+        uint256 offerAmount
+    )
         internal
         view
         returns (uint256 wantAmount)

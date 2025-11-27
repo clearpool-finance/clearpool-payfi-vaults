@@ -38,7 +38,7 @@ mainnet = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
 # avalanche = { key = "${SNOWTRACE_KEY}" }
 # arbitrum = { key = "${ARBISCAN_KEY}" }
 # optimism = { key = "${OPTIMISMSCAN_KEY}" }
-base = { key = "${BASESCAN_KEY}" }
+base = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
 
 [fmt]
 bracket_spacing = true

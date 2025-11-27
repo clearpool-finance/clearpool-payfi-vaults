@@ -364,7 +364,7 @@ contract AccountantWithRateProvidersUsingDifferentDecimalTest is Test, MainnetAd
         accountant.checkpoint();
 
         uint256 rate = accountant.getRate(); // 18 decimals
-            // totalSupply (6 dec) * rate (18 dec) / 1e18 = value (6 dec)
+        // totalSupply (6 dec) * rate (18 dec) / 1e18 = value (6 dec)
         uint256 value = vault.totalSupply().mulDivDown(rate, 1e18);
         // NO CONVERSION NEEDED - value is already in 6 decimals!
 

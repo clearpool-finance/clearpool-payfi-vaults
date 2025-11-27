@@ -360,7 +360,11 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      * @notice Allows users to deposit into the BoringVault, if this contract is not paused.
      * @dev Publicly callable.
      */
-    function deposit(ERC20 _depositAsset, uint256 _depositAmount, uint256 _minimumMint)
+    function deposit(
+        ERC20 _depositAsset,
+        uint256 _depositAmount,
+        uint256 _minimumMint
+    )
         external
         requiresAuth
         nonReentrant
@@ -414,7 +418,12 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      * @dev Does NOT support native deposits.
      * @dev Callable by SOLVER_ROLE.
      */
-    function bulkDeposit(ERC20 _depositAsset, uint256 _depositAmount, uint256 _minimumMint, address _to)
+    function bulkDeposit(
+        ERC20 _depositAsset,
+        uint256 _depositAmount,
+        uint256 _minimumMint,
+        address _to
+    )
         external
         requiresAuth
         nonReentrant
@@ -431,7 +440,12 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      * @notice Allows off ramp role to withdraw from this contract.
      * @dev Callable by SOLVER_ROLE.
      */
-    function bulkWithdraw(ERC20 _withdrawAsset, uint256 _shareAmount, uint256 _minimumAssets, address _to)
+    function bulkWithdraw(
+        ERC20 _withdrawAsset,
+        uint256 _shareAmount,
+        uint256 _minimumAssets,
+        address _to
+    )
         external
         requiresAuth
         checkAccess(msg.sender)
@@ -477,7 +491,12 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     /**
      * @notice Implements a common ERC20 deposit into BoringVault.
      */
-    function _erc20Deposit(ERC20 _depositAsset, uint256 _depositAmount, uint256 _minimumMint, address _to)
+    function _erc20Deposit(
+        ERC20 _depositAsset,
+        uint256 _depositAmount,
+        uint256 _minimumMint,
+        address _to
+    )
         internal
         returns (uint256 shares)
     {

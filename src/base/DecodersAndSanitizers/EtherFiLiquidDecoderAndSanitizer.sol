@@ -41,7 +41,10 @@ contract EtherFiLiquidDecoderAndSanitizer is
     PendleRouterDecoderAndSanitizer,
     AaveV3DecoderAndSanitizer
 {
-    constructor(address _boringVault, address _uniswapV3NonFungiblePositionManager)
+    constructor(
+        address _boringVault,
+        address _uniswapV3NonFungiblePositionManager
+    )
         BaseDecoderAndSanitizer(_boringVault)
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
     { }
@@ -51,7 +54,10 @@ contract EtherFiLiquidDecoderAndSanitizer is
      * @notice BalancerV2, ERC4626, and Curve all specify a `deposit(uint256,address)`,
      *         all cases are handled the same way.
      */
-    function deposit(uint256, address receiver)
+    function deposit(
+        uint256,
+        address receiver
+    )
         external
         pure
         override(BalancerV2DecoderAndSanitizer, ERC4626DecoderAndSanitizer, CurveDecoderAndSanitizer)
@@ -96,7 +102,10 @@ contract EtherFiLiquidDecoderAndSanitizer is
      * @notice Aura, and Convex all specify a `getReward(address,bool)`,
      *         all cases are handled the same way.
      */
-    function getReward(address _addr, bool)
+    function getReward(
+        address _addr,
+        bool
+    )
         external
         pure
         override(AuraDecoderAndSanitizer, ConvexDecoderAndSanitizer)

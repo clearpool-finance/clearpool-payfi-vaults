@@ -40,7 +40,10 @@ contract nTBILLDecoderAndSanitizer is
     PendleRouterDecoderAndSanitizer,
     AaveV3DecoderAndSanitizer
 {
-    constructor(address _boringVault, address _uniswapV3NonFungiblePositionManager)
+    constructor(
+        address _boringVault,
+        address _uniswapV3NonFungiblePositionManager
+    )
         BaseDecoderAndSanitizer(_boringVault)
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
     { }
@@ -50,7 +53,10 @@ contract nTBILLDecoderAndSanitizer is
      * @notice BalancerV2, ERC4626, and Curve all specify a `deposit(uint256,address)`,
      *         all cases are handled the same way.
      */
-    function deposit(uint256, address receiver)
+    function deposit(
+        uint256,
+        address receiver
+    )
         external
         pure
         override(BalancerV2DecoderAndSanitizer, CurveDecoderAndSanitizer)

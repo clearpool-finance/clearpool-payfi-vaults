@@ -29,7 +29,11 @@ abstract contract LayerZeroOFTDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // _sendParam.composeMsg length is 0
     // @tag dstEid:uint32:destination endpoint eid
 
-    function send(SendParam calldata _sendParam, MessagingFee calldata, address refundReceiver)
+    function send(
+        SendParam calldata _sendParam,
+        MessagingFee calldata,
+        address refundReceiver
+    )
         external
         view
         returns (bytes memory)

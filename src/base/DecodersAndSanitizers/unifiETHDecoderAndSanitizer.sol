@@ -31,7 +31,10 @@ contract unifiETHDecoderAndSanitizer is
     AeraVaultDecoderAndSanitizer,
     MorphoPositionOracleDecoderAndSanitizer
 {
-    constructor(address _boringVault, address _uniswapV3NonFungiblePositionManager)
+    constructor(
+        address _boringVault,
+        address _uniswapV3NonFungiblePositionManager
+    )
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
         BaseDecoderAndSanitizer(_boringVault)
     { }
@@ -54,7 +57,10 @@ contract unifiETHDecoderAndSanitizer is
      * @notice Curve, BalancerV2, and ERC4626 all specify a `deposit(uint256, address receiver)`,
      *         all cases are handled the same way.
      */
-    function deposit(uint256, address receiver)
+    function deposit(
+        uint256,
+        address receiver
+    )
         external
         pure
         override(CurveDecoderAndSanitizer, BalancerV2DecoderAndSanitizer, ERC4626DecoderAndSanitizer)

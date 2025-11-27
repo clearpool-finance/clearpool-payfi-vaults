@@ -121,7 +121,11 @@ abstract contract MultiChainTellerBase is CrossChainTellerBase {
      * @dev Callable by OWNER_ROLE.
      * @notice Allow messages to a chain.
      */
-    function allowMessagesToChain(uint32 chainSelector, address targetTeller, uint64 messageGasLimit)
+    function allowMessagesToChain(
+        uint32 chainSelector,
+        address targetTeller,
+        uint64 messageGasLimit
+    )
         external
         requiresAuth
     {

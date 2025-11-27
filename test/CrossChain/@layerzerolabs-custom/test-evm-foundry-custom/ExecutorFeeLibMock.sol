@@ -28,7 +28,11 @@ contract ExecutorFeeLibMock is Ownable, IExecutorFeeLib {
     }
 
     // ================================ External ================================
-    function getFeeOnSend(FeeParams calldata _params, IExecutor.DstConfig calldata _dstConfig, bytes calldata _options)
+    function getFeeOnSend(
+        FeeParams calldata _params,
+        IExecutor.DstConfig calldata _dstConfig,
+        bytes calldata _options
+    )
         external
         returns (uint256 fee)
     {
@@ -59,7 +63,11 @@ contract ExecutorFeeLibMock is Ownable, IExecutorFeeLib {
     }
 
     // ================================ View ================================
-    function getFee(FeeParams calldata _params, IExecutor.DstConfig calldata _dstConfig, bytes calldata _options)
+    function getFee(
+        FeeParams calldata _params,
+        IExecutor.DstConfig calldata _dstConfig,
+        bytes calldata _options
+    )
         external
         view
         returns (uint256 fee)
@@ -178,7 +186,12 @@ contract ExecutorFeeLibMock is Ownable, IExecutorFeeLib {
     }
 
     // includes value and nativeDrop
-    function _convertAndApplyPremiumToValue(uint256 _value, uint128 _ratio, uint128 _denom, uint16 _defaultBps)
+    function _convertAndApplyPremiumToValue(
+        uint256 _value,
+        uint128 _ratio,
+        uint128 _denom,
+        uint16 _defaultBps
+    )
         internal
         pure
         returns (uint256 fee)

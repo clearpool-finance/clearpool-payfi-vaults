@@ -36,12 +36,18 @@ contract ssETHDecoderAndSanitizer is
     EigenpieDecoderAndSanitizer,
     NucleusDecoderAndSanitizer
 {
-    constructor(address _boringVault, address _uniswapV3NonFungiblePositionManager)
+    constructor(
+        address _boringVault,
+        address _uniswapV3NonFungiblePositionManager
+    )
         BaseDecoderAndSanitizer(_boringVault)
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
     { }
 
-    function deposit(uint256, address receiver)
+    function deposit(
+        uint256,
+        address receiver
+    )
         external
         pure
         override(ERC4626DecoderAndSanitizer, CurveDecoderAndSanitizer, BalancerV2DecoderAndSanitizer)

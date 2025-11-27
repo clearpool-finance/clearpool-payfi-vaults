@@ -9,7 +9,11 @@ import { DecoderCustomTypes } from "src/interfaces/DecoderCustomTypes.sol";
 abstract contract NucleusDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc deposit into nucleus via the teller
     // @tag depositAsset:address:ERC20 to deposit, must be supported and approved
-    function deposit(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint)
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint
+    )
         external
         pure
         returns (bytes memory addressesFound)
@@ -21,7 +25,12 @@ abstract contract NucleusDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @desc teller deposit with receiver (post-Feb 2025 audits)
     // @tag depositAsset:address:ERC20 to deposit
     // @tag to:address:receiver
-    function deposit(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint, address to)
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address to
+    )
         external
         pure
         returns (bytes memory addressesFound)
@@ -35,7 +44,12 @@ abstract contract NucleusDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @tag destinationChainReceiver:address:receiver
     // @tag bridgeFeeToken:address:fee token
     // @tag messageGas:uint64:gas for message
-    function depositAndBridge(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint, BridgeData calldata data)
+    function depositAndBridge(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        BridgeData calldata data
+    )
         external
         pure
         returns (bytes memory addressesFound)
@@ -49,7 +63,11 @@ abstract contract NucleusDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @tag offer:address:ERC20 to withdraw
     // @tag want:address:ERC20 to withdraw into
     // @tag recipient:address:receiver
-    function updateAtomicRequest(ERC20 offer, ERC20 want, DecoderCustomTypes.AtomicRequestUCP calldata userRequest)
+    function updateAtomicRequest(
+        ERC20 offer,
+        ERC20 want,
+        DecoderCustomTypes.AtomicRequestUCP calldata userRequest
+    )
         external
         pure
         returns (bytes memory addressesFound)

@@ -10,7 +10,12 @@ abstract contract RenzoDecoderAndSanitizer is BaseDecoderAndSanitizer {
         return addressesFound;
     }
 
-    function deposit(address to, uint256[] memory amounts, uint256 minLpAmount, uint256 deadline)
+    function deposit(
+        address to,
+        uint256[] memory amounts,
+        uint256 minLpAmount,
+        uint256 deadline
+    )
         external
         returns (bytes memory addressesFound)
     {

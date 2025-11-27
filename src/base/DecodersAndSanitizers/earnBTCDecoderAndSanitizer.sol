@@ -36,12 +36,18 @@ contract earnBTCDecoderAndSanitizer is
     EigenpieDecoderAndSanitizer,
     PirexEthDecoderAndSanitizer
 {
-    constructor(address _boringVault, address _uniswapV3NonFungiblePositionManager)
+    constructor(
+        address _boringVault,
+        address _uniswapV3NonFungiblePositionManager
+    )
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
         BaseDecoderAndSanitizer(_boringVault)
     { }
 
-    function deposit(uint256, address receiver)
+    function deposit(
+        uint256,
+        address receiver
+    )
         external
         pure
         override(
