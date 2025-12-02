@@ -72,6 +72,11 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
+        // Operator (OPERATOR_ROLE):
+        authority.setRoleCapability(
+            OPERATOR_ROLE, atomicQueue, bytes4(keccak256("solve(address,address,address[],bytes,address)")), true
+        );
+
         // Allow Borrower to call AtomicSolverV3 functions
         authority.setRoleCapability(
             STRATEGIST_ROLE,
@@ -95,6 +100,20 @@ contract ConfigureAtomicRoles is BaseScript {
         );
         authority.setRoleCapability(
             UPDATE_EXCHANGE_RATE_ROLE,
+            atomicSolver,
+            bytes4(keccak256("redeemSolve(address,address,address,address[],uint256,uint256,address)")),
+            true
+        );
+
+        // Allow Operator to call AtomicSolverV3 functions
+        authority.setRoleCapability(
+            OPERATOR_ROLE,
+            atomicSolver,
+            bytes4(keccak256("p2pSolve(address,address,address,address[],uint256,uint256)")),
+            true
+        );
+        authority.setRoleCapability(
+            OPERATOR_ROLE,
             atomicSolver,
             bytes4(keccak256("redeemSolve(address,address,address,address[],uint256,uint256,address)")),
             true

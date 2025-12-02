@@ -30,7 +30,6 @@ poseidon = "${POSEIDON_RPC_URL}"
 plasma="${PLASMA_RPC_URL}"
 flare="${FLARE_RPC_URL}"
 
-
 [etherscan]
 mainnet = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
 # polygon = { key = "${POLYGONSCAN_KEY}" }
@@ -39,6 +38,7 @@ mainnet = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
 # arbitrum = { key = "${ARBISCAN_KEY}" }
 # optimism = { key = "${OPTIMISMSCAN_KEY}" }
 base = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
+sepolia_main = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
 
 [fmt]
 bracket_spacing = true
