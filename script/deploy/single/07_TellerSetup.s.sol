@@ -24,14 +24,23 @@ contract TellerSetup is BaseScript {
     function deploy(ConfigReader.Config memory config) public virtual override broadcast returns (address) {
         TellerWithMultiAssetSupport teller = TellerWithMultiAssetSupport(config.teller);
 
-        // Set access control mode once
-        teller.setAccessControlMode(TellerWithMultiAssetSupport.AccessControlMode.DISABLED);
+        // Set access control mode from config (0=DISABLED, 1=KEYRING_KYC, 2=MANUAL_WHITELIST)
+        TellerWithMultiAssetSupport.AccessControlMode mode =
+            TellerWithMultiAssetSupport.AccessControlMode(config.accessControlMode);
+        teller.setAccessControlMode(mode);
 
-        // teller.setAccessControlMode(TellerWithMultiAssetSupport.AccessControlMode.MANUAL_WHITELIST);
+        // Set whitelist if mode is MANUAL_WHITELIST
+        if (mode == TellerWithMultiAssetSupport.AccessControlMode.MANUAL_WHITELIST) {
+            // Always whitelist the atomic solver
+            address[] memory solverWhitelist = new address[](1);
+            solverWhitelist[0] = config.atomicSolver;
+            teller.updateManualWhitelist(solverWhitelist, true);
 
-        // address[] memory whitelist = new address[](1);
-        // whitelist[0] = config.atomicSolver;
-        // teller.updateManualWhitelist(whitelist, true);
+            // Also whitelist any additional addresses from config
+            if (config.initialWhitelist.length > 0) {
+                teller.updateManualWhitelist(config.initialWhitelist, true);
+            }
+        }
 
         // add the base asset by default for all configurations
         teller.addAsset(ERC20(config.base));

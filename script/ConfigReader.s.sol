@@ -60,6 +60,8 @@ library ConfigReader {
         address[] priceFeeds;
         address atomicQueue;
         address atomicSolver;
+        uint8 accessControlMode;
+        address[] initialWhitelist;
     }
 
     function toConfig(string memory _config, string memory _chainConfig) internal pure returns (Config memory config) {
@@ -96,6 +98,8 @@ library ConfigReader {
         config.tellerContractName = _config.readString(".teller.tellerContractName");
         config.assets = _config.readAddressArray(".teller.assets");
         config.depositCap = _config.readUint(".teller.depositCap");
+        config.accessControlMode = uint8(_config.readUint(".teller.accessControlMode"));
+        config.initialWhitelist = _config.readAddressArray(".teller.initialWhitelist");
 
         // layerzero
         if (compareStrings(config.tellerContractName, "MultiChainLayerZeroTellerWithMultiAssetSupport")) {
