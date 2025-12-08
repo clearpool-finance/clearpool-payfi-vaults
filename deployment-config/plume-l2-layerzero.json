@@ -37,7 +37,8 @@
     "accessControlMode": 2,
     "initialWhitelist": [],
     "assets": [],
-    "address": "0x0000000000000000000000000000000000000000"
+    "address": "0x0000000000000000000000000000000000000000",
+    "depositCap": 10000000
   },
   "rolesAuthority": {
     "rolesAuthoritySalt": "0x76bbc3b3b3000b01466a3a00000000000000000000000000000000000000699b",
