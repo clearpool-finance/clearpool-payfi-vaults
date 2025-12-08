@@ -24,6 +24,7 @@ import { DeployAtomicSolverV3 } from "./DeployAtomicSolverV3.s.sol";
 import { ConfigureAtomicRoles } from "../ConfigureAtomicRoles.s.sol";
 import { TellerSetup } from "./single/07_TellerSetup.s.sol";
 import { SetAuthorityAndTransferOwnerships } from "./single/08_SetAuthorityAndTransferOwnerships.s.sol";
+import { DeployAllDecoders } from "./single/09_DeployAllDecoders.s.sol";
 
 import { ConfigReader, IAuthority } from "../ConfigReader.s.sol";
 import { console } from "forge-std/console.sol";
@@ -113,6 +114,10 @@ contract DeployAll is BaseScript {
 
         new SetAuthorityAndTransferOwnerships().deploy(config);
         console.log("Set Authority And Transfer Ownerships Complete");
+
+        // Deploy all decoders
+        new DeployAllDecoders().deployAllDecoders(config);
+        console.log("All Decoders Deployed");
 
         mainConfig = config;
     }
