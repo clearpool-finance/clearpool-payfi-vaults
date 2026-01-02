@@ -17,6 +17,9 @@ import {
 import {
     CompoundV3DecoderAndSanitizer
 } from "src/base/DecodersAndSanitizers/CustomDecoders/CompoundV3DecoderAndSanitizer.sol";
+import {
+    ClearpoolVaultDecoderAndSanitizer
+} from "src/base/DecodersAndSanitizers/CustomDecoders/ClearpoolVaultDecoderAndSanitizer.sol";
 
 /**
  * Usage:
@@ -24,11 +27,12 @@ import {
  * DECODER_KIND=AAVE          forge script script/DeployDecoder.s.sol:DeployDecoder ...
  * DECODER_KIND=TELLER        forge script script/DeployDecoder.s.sol:DeployDecoder ...
  * DECODER_KIND=ATOMIC_QUEUE  forge script script/DeployDecoder.s.sol:DeployDecoder ...
+ * DECODER_KIND=CLEARPOOL     forge script script/DeployDecoder.s.sol:DeployDecoder ...
  *
  * Required env:
  *   PRIVATE_KEY
  *   BORING_VAULT
- *   DECODER_KIND in { ERC20, AAVE, TELLER, ATOMIC_QUEUE, COMPOUND_V3 }
+ *   DECODER_KIND in { ERC20, AAVE, TELLER, ATOMIC_QUEUE, COMPOUND_V3, CLEARPOOL }
  */
 contract DeployDecoder is Script {
     function run() external {
@@ -53,6 +57,9 @@ contract DeployDecoder is Script {
         } else if (_eq(kind, "COMPOUND_V3")) {
             CompoundV3DecoderAndSanitizer dec = new CompoundV3DecoderAndSanitizer(boringVault);
             console2.log("CompoundV3DecoderAndSanitizer deployed at:", address(dec));
+        } else if (_eq(kind, "CLEARPOOL")) {
+            ClearpoolVaultDecoderAndSanitizer dec = new ClearpoolVaultDecoderAndSanitizer(boringVault);
+            console2.log("ClearpoolVaultDecoderAndSanitizer deployed at:", address(dec));
         } else {
             revert("Unsupported DECODER_KIND");
         }
