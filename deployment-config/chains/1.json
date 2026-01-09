@@ -97,6 +97,11 @@
       "expectedMin": "1000000000000000000",
       "expectedMax": "1200000000000000000",
       "rateProvider": "0xa427b23b686986ed993b4ba9ae23bf65022f938a"
+    },
+    "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+      "isPeggedToBase": true,
+      "rateProvider": "0x0000000000000000000000000000000000000000",
+      "priceFeed": "0x0000000000000000000000000000000000000000"
     }
   }
 }

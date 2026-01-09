@@ -186,8 +186,15 @@ contract DeployRolesAuthority is BaseScript {
         // --- Assign roles to users ---
 
         rolesAuthority.setUserRole(config.strategist, STRATEGIST_ROLE, true);
-        rolesAuthority.setUserRole(config.strategist, MANAGER_ROLE, true);
 
+        // Grant STRATEGIST_ROLE to additional strategists (no MANAGER_ROLE to enforce merkle verification)
+        for (uint256 i = 0; i < config.additionalStrategists.length; i++) {
+            if (config.additionalStrategists[i] != address(0)) {
+                rolesAuthority.setUserRole(config.additionalStrategists[i], STRATEGIST_ROLE, true);
+            }
+        }
+
+        // Only the Manager contract gets MANAGER_ROLE (required for system to work)
         rolesAuthority.setUserRole(config.manager, MANAGER_ROLE, true);
 
         rolesAuthority.setUserRole(config.teller, TELLER_ROLE, true);
@@ -203,6 +210,9 @@ contract DeployRolesAuthority is BaseScript {
         }
 
         rolesAuthority.setUserRole(broadcaster, OPERATOR_ROLE, true);
+        if (config.operator != address(0) && config.operator != broadcaster) {
+            rolesAuthority.setUserRole(config.operator, OPERATOR_ROLE, true);
+        }
 
         // Post Deploy Checks
         require(
