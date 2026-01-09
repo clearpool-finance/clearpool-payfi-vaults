@@ -48,8 +48,10 @@ library ConfigReader {
         address teller;
         string tellerContractName;
         address strategist;
+        address[] additionalStrategists;
         address exchangeRateBot;
         address pauser;
+        address operator;
         address rolesAuthority;
         bytes32 decoderSalt;
         address decoder;
@@ -120,8 +122,10 @@ library ConfigReader {
         config.rolesAuthority = _config.readAddress(".rolesAuthority.address");
         config.rolesAuthoritySalt = _config.readBytes32(".rolesAuthority.rolesAuthoritySalt");
         config.strategist = _config.readAddress(".rolesAuthority.strategist");
+        config.additionalStrategists = _config.readAddressArray(".rolesAuthority.additionalStrategists");
         config.exchangeRateBot = _config.readAddress(".rolesAuthority.exchangeRateBot");
         config.pauser = _config.readAddress(".rolesAuthority.pauser");
+        config.operator = _config.readAddress(".rolesAuthority.operator");
 
         // Reading from the 'decoder' section
         config.decoderSalt = _config.readBytes32(".decoder.decoderSalt");
