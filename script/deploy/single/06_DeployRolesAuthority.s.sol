@@ -67,7 +67,7 @@ contract DeployRolesAuthority is BaseScript {
         require(config.manager != address(0), "manager");
         require(config.teller != address(0), "teller");
         require(config.accountant != address(0), "accountant");
-        require(config.strategist != address(0), "strategist");
+        // Note: strategist can be zero address if borrower not known at deployment time
 
         // Create Contract
         bytes memory creationCode = type(RolesAuthority).creationCode;
@@ -178,6 +178,11 @@ contract DeployRolesAuthority is BaseScript {
             OPERATOR_ROLE, config.manager, ManagerWithMerkleVerification.setManageRoot.selector, true
         );
 
+        // Allow OPERATOR_ROLE to add/remove user roles (needed to add borrower later)
+        rolesAuthority.setRoleCapability(
+            OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setUserRole.selector, true
+        );
+
         // --- Set Public Capabilities ---
         rolesAuthority.setPublicCapability(config.teller, TellerWithMultiAssetSupport.deposit.selector, true);
         rolesAuthority.setPublicCapability(config.teller, CrossChainTellerBase.bridge.selector, true);
@@ -185,7 +190,10 @@ contract DeployRolesAuthority is BaseScript {
 
         // --- Assign roles to users ---
 
-        rolesAuthority.setUserRole(config.strategist, STRATEGIST_ROLE, true);
+        // Only assign strategist role if strategist is not zero address
+        if (config.strategist != address(0)) {
+            rolesAuthority.setUserRole(config.strategist, STRATEGIST_ROLE, true);
+        }
 
         // Grant STRATEGIST_ROLE to additional strategists (no MANAGER_ROLE to enforce merkle verification)
         for (uint256 i = 0; i < config.additionalStrategists.length; i++) {
@@ -215,10 +223,13 @@ contract DeployRolesAuthority is BaseScript {
         }
 
         // Post Deploy Checks
-        require(
-            rolesAuthority.doesUserHaveRole(config.strategist, STRATEGIST_ROLE),
-            "strategist should have STRATEGIST_ROLE"
-        );
+        // Only check strategist role if strategist is not zero address
+        if (config.strategist != address(0)) {
+            require(
+                rolesAuthority.doesUserHaveRole(config.strategist, STRATEGIST_ROLE),
+                "strategist should have STRATEGIST_ROLE"
+            );
+        }
 
         require(rolesAuthority.doesUserHaveRole(config.manager, MANAGER_ROLE), "manager should have MANAGER_ROLE");
 
@@ -243,14 +254,17 @@ contract DeployRolesAuthority is BaseScript {
             require(rolesAuthority.doesUserHaveRole(config.pauser, PAUSER_ROLE), "pauser should have PAUSER_ROLE");
         }
 
-        require(
-            rolesAuthority.canCall(
-                config.strategist,
-                config.manager,
-                ManagerWithMerkleVerification.manageVaultWithMerkleVerification.selector
-            ),
-            "strategist should be able to call manageVaultWithMerkleVerification"
-        );
+        // Only check strategist capability if strategist is not zero address
+        if (config.strategist != address(0)) {
+            require(
+                rolesAuthority.canCall(
+                    config.strategist,
+                    config.manager,
+                    ManagerWithMerkleVerification.manageVaultWithMerkleVerification.selector
+                ),
+                "strategist should be able to call manageVaultWithMerkleVerification"
+            );
+        }
         require(
             rolesAuthority.canCall(
                 config.manager, config.boringVault, bytes4(keccak256(abi.encodePacked("manage(address,bytes,uint256)")))
