@@ -1,20 +1,20 @@
 {
-  "base": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-  "protocolAdmin": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
-  "boringVaultAndBaseDecimals": "6",
+  "base": "0x427Bb443F2fDa1EF25e261f007662ecab54644Ac",
+  "protocolAdmin": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
+  "boringVaultAndBaseDecimals": "18",
   "boringVault": {
-    "boringVaultSalt": "0x2ddd634c506ad203da17ff000000000000000000000000000000000000010f02",
-    "boringVaultName": "OvalFi",
-    "boringVaultSymbol": "cpOF",
+    "boringVaultSalt": "0x2ddd634c506ad203da17ff000000000000000000000000000000000000010f04",
+    "boringVaultName": "Protos",
+    "boringVaultSymbol": "cpProtos",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "manager": {
-    "managerSalt": "0x40432d4b4ec00003b4a250000000000000000000000000000000000000010f02",
+    "managerSalt": "0x40432d4b4ec00003b4a250000000000000000000000000000000000000010f04",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "accountant": {
-    "accountantSalt": "0x7a184dbea6f3cc0318679f000000000000000000000000000000000000010f02",
-    "payoutAddress": "0x2FEBCb79b420aeCB01Aa2F81920CD15c3B1274F9",
+    "accountantSalt": "0x7a184dbea6f3cc0318679f000000000000000000000000000000000000010f04",
+    "payoutAddress": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
     "allowedExchangeRateChangeUpper": "10003",
     "allowedExchangeRateChangeLower": "10000",
     "minimumUpdateDelayInSeconds": "3600",
@@ -23,7 +23,7 @@
     "address": "0x0000000000000000000000000000000000000000"
   },
   "teller": {
-    "tellerSalt": "0x61f8968749a56d01202c91000000000000000000000000000000000000010f02",
+    "tellerSalt": "0x61f8968749a56d01202c91000000000000000000000000000000000000010f04",
     "maxGasForPeer": 100000,
     "minGasForPeer": 0,
     "peerEid": 30101,
@@ -35,25 +35,25 @@
       "optionalThreshold": 1
     },
     "assets": [],
-    "depositCap": 10000000,
-    "accessControlMode": "2",
+    "depositCap": 50000000,
+    "accessControlMode": "0",
     "initialWhitelist": [],
     "address": "0x0000000000000000000000000000000000000000"
   },
   "rolesAuthority": {
-    "rolesAuthoritySalt": "0x76bbc3b3b3000b01466a3a000000000000000000000000000000000000010f02",
-    "strategist": "0xdE8f2720De5E4B435e96F6ceDE567d7700C910D3",
+    "rolesAuthoritySalt": "0x76bbc3b3b3000b01466a3a000000000000000000000000000000000000010f04",
+    "strategist": "0x0000000000000000000000000000000000000000",
     "additionalStrategists": [
-      "0x2FEBCb79b420aeCB01Aa2F81920CD15c3B1274F9",
+      "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
       "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504"
     ],
-    "exchangeRateBot": "0x2FEBCb79b420aeCB01Aa2F81920CD15c3B1274F9",
-    "pauser": "0x2FEBCb79b420aeCB01Aa2F81920CD15c3B1274F9",
+    "exchangeRateBot": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
+    "pauser": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
     "operator": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
     "address": "0x0000000000000000000000000000000000000000"
   },
   "decoder": {
-    "decoderSalt": "0x58b53893da2e0b0248268c000000000000000000000000000000000000010f02",
+    "decoderSalt": "0x58b53893da2e0b0248268c000000000000000000000000000000000000010f04",
     "address": "0x0000000000000000000000000000000000000000"
   }
 }
