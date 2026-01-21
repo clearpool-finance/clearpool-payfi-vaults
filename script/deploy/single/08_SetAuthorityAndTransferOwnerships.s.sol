@@ -34,6 +34,7 @@ contract SetAuthorityAndTransferOwnerships is BaseScript {
         IAuthority(config.accountant).setAuthority(config.rolesAuthority);
         IAuthority(config.manager).setAuthority(config.rolesAuthority);
         IAuthority(config.teller).setAuthority(config.rolesAuthority);
+        IAuthority(config.rolesAuthority).setAuthority(config.rolesAuthority);
         IAuthority(config.boringVault).transferOwnership(config.protocolAdmin);
         IAuthority(config.manager).transferOwnership(config.protocolAdmin);
         IAuthority(config.accountant).transferOwnership(config.protocolAdmin);
