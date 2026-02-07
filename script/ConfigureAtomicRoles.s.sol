@@ -10,8 +10,8 @@ import { ConfigReader } from "./ConfigReader.s.sol";
 import "./../src/helper/Constants.sol";
 
 contract ConfigureAtomicRoles is BaseScript {
-    // Role constants
-    uint8 public constant SOLVER_ROLE = 9;
+    // Note: SOLVER_ROLE (5) is imported from Constants.sol
+    // Define only roles not in Constants.sol
     uint8 public constant QUEUE_ROLE = 10;
 
     // Addresses (will be overridden by deployWithConfig)
