@@ -35,10 +35,31 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
 
     error AtomicSolverV3___WrongInitiator();
     error AtomicSolverV3___AlreadyInSolveContext();
+    error AtomicSolverV3___NotInSolveContext();
     error AtomicSolverV3___FailedToSolve();
     error AtomicSolverV3___SolveMaxAssetsExceeded(uint256 actualAssets, uint256 maxAssets);
     error AtomicSolverV3___P2PSolveMinSharesNotMet(uint256 actualShares, uint256 minShares);
     error AtomicSolverV3___BoringVaultTellerMismatch(address vault, address teller);
+
+    //============================== STATE ===============================
+
+    /**
+     * @notice In-contract solve-context flag.
+     * @dev Set to 1 by the `inSolveContext` modifier wrapping `p2pSolve` / `redeemSolve`,
+     *      asserted in `finishSolve` to prove the callback is reached via a legitimate
+     *      `queue.solve()` path. Complements the Authority-level `QUEUE_ROLE` gate —
+     *      defense-in-depth if Authority is ever misconfigured.
+     */
+    uint256 private _inSolveContext;
+
+    //============================== MODIFIERS ===============================
+
+    modifier inSolveContext() {
+        if (_inSolveContext != 0) revert AtomicSolverV3___AlreadyInSolveContext();
+        _inSolveContext = 1;
+        _;
+        _inSolveContext = 0;
+    }
 
     //============================== IMMUTABLES ===============================
 
@@ -59,6 +80,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
     )
         external
         requiresAuth
+        inSolveContext
     {
         bytes memory runData = abi.encode(SolveType.P2P, msg.sender, minOfferReceived, maxAssets);
 
@@ -81,6 +103,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
     )
         external
         requiresAuth
+        inSolveContext
     {
         bytes memory runData = abi.encode(SolveType.REDEEM, msg.sender, minimumAssetsOut, maxAssets, teller);
 
@@ -92,11 +115,11 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
 
     /**
      * @notice Implement the finishSolve function WithdrawQueue expects to call.
-     * @dev nonReentrant is not needed on this function because it is impossible to reenter,
-     *      because the above solve functions have the nonReentrant modifier.
-     *      The only way to have the first 2 checks pass is if the msg.sender is the queue,
-     *      and this contract is msg.sender of `Queue.solve()`, which is only called in the above
-     *      functions.
+     * @dev Two layers of protection:
+     *      1. `requiresAuth` + (off-chain) role wiring restrict direct callers to the queue.
+     *      2. `_inSolveContext == 1` proves in-contract that we arrived via a legitimate
+     *         `p2pSolve` / `redeemSolve` → `queue.solve()` → callback path. This defends
+     *         against Authority misconfiguration even granting the selector to an attacker.
      */
     function finishSolve(
         bytes calldata runData,
@@ -109,6 +132,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
         external
         requiresAuth
     {
+        if (_inSolveContext != 1) revert AtomicSolverV3___NotInSolveContext();
         if (initiator != address(this)) revert AtomicSolverV3___WrongInitiator();
 
         address queue = msg.sender;
