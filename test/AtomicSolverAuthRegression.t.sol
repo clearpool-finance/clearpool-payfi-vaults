@@ -97,19 +97,19 @@ contract AtomicSolverAuthRegression is Test {
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
-    function test_correctWiring_queueCanCallFinishSolve() public {
+    function test_correctWiring_queueCanPassAuthButLockBlocksDirectCall() public {
         _wireCorrect();
 
-        // Simulate the queue calling back into finishSolve during a legitimate solve.
-        // (We don't run a full solve; we only need to verify the auth passes.)
-        // The `initiator != address(this)` check will then revert — meaning the auth layer
-        // already passed. We're specifically testing: does QUEUE_ROLE let `queue` reach this function?
+        // The queue has QUEUE_ROLE and therefore passes the Authority-level `requiresAuth` check.
+        // However the new in-contract solve-context lock (C-1/M-2/L-2 fix) rejects ANY call
+        // to finishSolve that is not reached via a live p2pSolve / redeemSolve. Direct calls
+        // by the queue — if the queue were ever compromised or pointed at a different solver —
+        // are blocked with NotInSolveContext. This is the defense-in-depth guarantee.
         bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, admin, uint256(0), type(uint256).max);
 
         vm.prank(address(queue));
-        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___WrongInitiator.selector);
-        // Pass a deliberately-wrong initiator so we check only the auth layer, not the full solve
-        solver.finishSolve(runData, address(0xdead), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
+        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___NotInSolveContext.selector);
+        solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
     function test_correctWiring_canCallMatrixIsTight() public {
@@ -142,31 +142,26 @@ contract AtomicSolverAuthRegression is Test {
         authority.setUserRole(address(solver), SOLVER_ROLE, true);
     }
 
-    function test_brokenWiring_reproducesExploit() public {
+    function test_brokenWiring_stillBlockedByInContractLock() public {
+        // Simulate the ORIGINAL buggy wiring (setPublicCapability). Historically this
+        // let attackers drain any address with an approval to the solver. Post-fix,
+        // the in-contract solve-context lock blocks the exploit *even if* Authority
+        // is misconfigured back to public — this is the defense-in-depth claim.
         _wireBroken();
 
-        uint256 before = want.balanceOf(victim);
+        uint256 victimBefore = want.balanceOf(victim);
+        uint256 solverBefore = want.balanceOf(address(solver));
         uint256 amount = 100_000e18;
 
-        // Attacker passes runData with solver=victim (who has an approval to AtomicSolverV3),
-        // and `initiator = address(solver)` to bypass the parameter-based check.
         bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, victim, uint256(0), type(uint256).max);
 
         vm.prank(attacker);
-        solver.finishSolve(
-            runData,
-            address(solver), // bypasses `initiator != address(this)` check
-            ERC20(address(want)),
-            ERC20(address(want)),
-            0,
-            amount
-        );
+        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___NotInSolveContext.selector);
+        solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, amount);
 
-        // Victim was drained. The funds sit in the solver now approved to the attacker.
-        assertEq(want.balanceOf(victim), before - amount, "victim drained via broken wiring");
-        assertEq(want.balanceOf(address(solver)), amount, "solver now holds victim's funds");
-        assertEq(
-            want.allowance(address(solver), attacker), amount, "attacker now has allowance to transferFrom the solver"
-        );
+        // Victim funds untouched, solver has nothing, no allowance created.
+        assertEq(want.balanceOf(victim), victimBefore, "victim funds must remain intact");
+        assertEq(want.balanceOf(address(solver)), solverBefore, "solver must not hold victim funds");
+        assertEq(want.allowance(address(solver), attacker), 0, "no allowance to attacker");
     }
 }

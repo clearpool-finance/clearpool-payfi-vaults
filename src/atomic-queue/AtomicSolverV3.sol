@@ -243,27 +243,32 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
             revert AtomicSolverV3___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
         }
 
-        // CEI: pull from the solver (effect) BEFORE calling the teller (external interaction).
-        // The teller is trusted today but may be upgraded; keeping the solver transfer first
-        // guarantees that a buggy or malicious teller cannot reenter before solver state settles.
-        // FoT reconciliation on the inbound leg:
+        // Redeem the shares that the queue just moved into this contract, sending the
+        // proceeds into THIS contract (not the solver bot). The prior design sent proceeds
+        // to the solver then pulled wantApprovalAmount back via transferFrom — a pointless
+        // round-trip that also forced solvers to grant this contract a standing allowance
+        // on every want asset. Keeping the funds here makes the CEI order clean and removes
+        // the solver-allowance attack surface.
         uint256 balBefore = want.balanceOf(address(this));
-        want.safeTransferFrom(solver, address(this), wantApprovalAmount);
+        uint256 assetsOut = teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, address(this));
         uint256 received = want.balanceOf(address(this)) - balBefore;
+
+        // FoT reconciliation: the teller computes assetsOut from the exchange rate but
+        // vault.exit does the actual ERC20.transfer, so a FoT token can leave us short.
         if (received < wantApprovalAmount) {
             revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
         }
 
-        // Redeem the shares, sending assets to solver.
-        uint256 assetsOut = teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, solver);
-
-        // Solver economics check: the redeem must cover what users owe.
-        // A sandwich on the teller exchange rate or a stale rate can produce
-        // assetsOut < wantApprovalAmount, making the solve unprofitable. Fail loud
-        // and early before any further state change.
+        // Solver economics check: a sandwich on the teller exchange rate or a stale rate
+        // can produce assetsOut < wantApprovalAmount, making the solve unprofitable. Fail
+        // loud and early before any further state change.
         if (assetsOut < wantApprovalAmount) {
             revert AtomicSolverV3___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
         }
+
+        // Pay the solver their profit margin (proceeds in excess of the queue's take).
+        uint256 solverProfit = received - wantApprovalAmount;
+        if (solverProfit != 0) want.safeTransfer(solver, solverProfit);
 
         // Approve queue to spend wantApprovalAmount. Zero-reset for USDT-style tokens.
         want.safeApprove(queue, 0);
