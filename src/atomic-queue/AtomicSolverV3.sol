@@ -223,16 +223,19 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
             revert AtomicSolverV3___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
         }
 
-        // Redeem the shares, sending assets to solver.
-        teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, solver);
-
-        // Transfer required assets from solver with fee-on-transfer reconciliation.
+        // CEI: pull from the solver (effect) BEFORE calling the teller (external interaction).
+        // The teller is trusted today but may be upgraded; keeping the solver transfer first
+        // guarantees that a buggy or malicious teller cannot reenter before solver state settles.
+        // FoT reconciliation on the inbound leg:
         uint256 balBefore = want.balanceOf(address(this));
         want.safeTransferFrom(solver, address(this), wantApprovalAmount);
         uint256 received = want.balanceOf(address(this)) - balBefore;
         if (received < wantApprovalAmount) {
             revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
         }
+
+        // Redeem the shares, sending assets to solver.
+        teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, solver);
 
         // Approve queue to spend wantApprovalAmount. Zero-reset for USDT-style tokens.
         want.safeApprove(queue, 0);
