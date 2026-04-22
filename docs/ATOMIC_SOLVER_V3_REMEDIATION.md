@@ -10,24 +10,22 @@
 
 ## 1. Validation summary
 
-Two status columns:
-- **On `main` (pre-branch):** what the team had shipped before this remediation work started.
-- **On `security/atomicsolverv3-remediation`:** final state on the side branch. Every finding is patched.
+Status is as of the `security/atomicsolverv3-remediation` branch.
 
-| ID  | Severity | Title                                                                 | Line(s) in src | Valid? | On `main` | On `security/…` branch |
-|-----|----------|-----------------------------------------------------------------------|----------------|--------|-----------|-------------------------|
-| C-1 | CRITICAL | Direct `finishSolve` call drains pre-approvals                         | 101–123        | ✅ Yes | ⚠️ Partial (config-only) | ✅ Fixed — in-contract `_inSolveContext` + `_expectedQueue` locks (§3.1, §3.12) |
-| H-1 | HIGH     | Missing `nonReentrant` contradicts NatSpec (ERC777 reentrancy)         | 52, 73, 94–99  | ✅ Yes | ❌ No     | ✅ Fixed — solmate `ReentrancyGuard` + `nonReentrant` on both outer paths (§3.2) |
-| H-2 | HIGH     | `safeApprove` without zero-reset breaks permanently on USDT            | 160, 194       | ✅ Yes | ❌ No     | ✅ Fixed — zero-reset prepended at both approval sites (§3.3) |
-| H-3 | HIGH     | Fee-on-transfer `want` → approval overcommits contract balance         | 151+160, 188+194 | ✅ Yes | ❌ No   | ✅ Fixed — `balanceOf` delta reconcile + early revert (§3.4) |
-| M-1 | MEDIUM   | CEI violation in `_redeemSolve` (`bulkWithdraw` before `safeTransferFrom`) | 188 vs 191 | ✅ Yes | ❌ No     | ✅ Fixed — redesigned to send proceeds to self, pay solver profit last (§3.5) |
-| M-2 | MEDIUM   | Authority misconfig is single point of failure                         | —              | ✅ Yes | ⚠️ Partial | ✅ Fixed — `_inSolveContext` + `_expectedQueue` checks are in-contract, independent of Authority (§3.1, §3.12) |
-| M-3 | MEDIUM   | Zero-address owner not guarded in constructor                          | 45             | ✅ Yes | ❌ No     | ✅ Fixed — constructor revert on `_owner == address(0)` (§3.6) |
-| M-4 | MEDIUM   | `wantApprovalAmount` unbounded vs `bulkWithdraw` proceeds              | 185–188        | ✅ Yes | ❌ No     | ✅ Fixed — capture `assetsOut`, revert on shortfall with explicit error (§3.7) |
-| L-1 | LOW      | Unused `eETH` / `weETH` constants                                       | 19–20          | ✅ Yes | ❌ No     | ✅ Fixed — constants removed (§3.8) |
-| L-2 | LOW      | `AlreadyInSolveContext` error declared but never emitted                | 37             | ✅ Yes | ❌ No     | ✅ Fixed — wired up in `inSolveContext` modifier (§3.9 / §3.1) |
-| I-1 | INFO     | No token recovery mechanism                                             | —              | ✅ Yes | ❌ No     | ✅ Fixed — `rescue(token, amount, to)` added; `requiresAuth`, blocked mid-solve, emits event (§3.10) |
-| I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                        | —              | ✅ Yes | ❌ No     | ⚠️ **Deferred** — queue-side change, separate PR (§3.11) |
+| ID  | Severity | Title                                                                 | Line(s) in src | Valid? | Status |
+|-----|----------|-----------------------------------------------------------------------|----------------|--------|--------|
+| C-1 | CRITICAL | Direct `finishSolve` call drains pre-approvals                         | 101–123        | ✅ Yes | ✅ Fixed — in-contract `_inSolveContext` + `_expectedQueue` locks (§3.1, §3.12) |
+| H-1 | HIGH     | Missing `nonReentrant` contradicts NatSpec (ERC777 reentrancy)         | 52, 73, 94–99  | ✅ Yes | ✅ Fixed — solmate `ReentrancyGuard` + `nonReentrant` on both outer paths (§3.2) |
+| H-2 | HIGH     | `safeApprove` without zero-reset breaks permanently on USDT            | 160, 194       | ✅ Yes | ✅ Fixed — zero-reset prepended at both approval sites (§3.3) |
+| H-3 | HIGH     | Fee-on-transfer `want` → approval overcommits contract balance         | 151+160, 188+194 | ✅ Yes | ✅ Fixed — `balanceOf` delta reconcile + early revert (§3.4) |
+| M-1 | MEDIUM   | CEI violation in `_redeemSolve` (`bulkWithdraw` before `safeTransferFrom`) | 188 vs 191 | ✅ Yes | ✅ Fixed — redesigned to send proceeds to self, pay solver profit last (§3.5) |
+| M-2 | MEDIUM   | Authority misconfig is single point of failure                         | —              | ✅ Yes | ✅ Fixed — `_inSolveContext` + `_expectedQueue` checks are in-contract, independent of Authority (§3.1, §3.12) |
+| M-3 | MEDIUM   | Zero-address owner not guarded in constructor                          | 45             | ✅ Yes | ✅ Fixed — constructor revert on `_owner == address(0)` (§3.6) |
+| M-4 | MEDIUM   | `wantApprovalAmount` unbounded vs `bulkWithdraw` proceeds              | 185–188        | ✅ Yes | ✅ Fixed — capture `assetsOut`, revert on shortfall with explicit error (§3.7) |
+| L-1 | LOW      | Unused `eETH` / `weETH` constants                                       | 19–20          | ✅ Yes | ✅ Fixed — constants removed (§3.8) |
+| L-2 | LOW      | `AlreadyInSolveContext` error declared but never emitted                | 37             | ✅ Yes | ✅ Fixed — wired up in `inSolveContext` modifier (§3.9 / §3.1) |
+| I-1 | INFO     | No token recovery mechanism                                             | —              | ✅ Yes | ✅ Fixed — `rescue(token, amount, to)` added; `requiresAuth`, blocked mid-solve, emits event (§3.10) |
+| I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                        | —              | ✅ Yes | ⚠️ **Deferred** — queue-side change, separate PR (§3.11) |
 
 **11 of 12 findings fully patched on the branch. I-2 is queue-side and deferred by design** — it requires changing `AtomicQueue.solve`'s batch semantics which is a breaking change for keeper bots, so it's tracked as a separate PR rather than included here. The solver-side remediation is complete.
 
