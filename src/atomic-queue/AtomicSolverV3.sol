@@ -43,6 +43,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     error AtomicSolverV3___BoringVaultTellerMismatch(address vault, address teller);
     error AtomicSolverV3___FeeOnTransferTokenNotSupported(uint256 received, uint256 expected);
     error AtomicSolverV3___RedeemProceedsShortfall(uint256 proceeds, uint256 required);
+    error AtomicSolverV3___ZeroAddress();
 
     //============================== STATE ===============================
 
@@ -66,7 +67,11 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
 
     //============================== IMMUTABLES ===============================
 
-    constructor(address _owner, Authority _authority) Auth(_owner, _authority) { }
+    constructor(address _owner, Authority _authority) Auth(_owner, _authority) {
+        // Solmate's Auth does not validate _owner; address(0) here would permanently
+        // brick setOwner / setAuthority since only the current owner can rotate them.
+        if (_owner == address(0)) revert AtomicSolverV3___ZeroAddress();
+    }
 
     //============================== SOLVE FUNCTIONS ===============================
     /**
