@@ -5,13 +5,14 @@ import { AtomicQueue, ERC20, SafeTransferLib } from "./AtomicQueue.sol";
 import { IAtomicSolver } from "./IAtomicSolver.sol";
 import { Auth, Authority } from "@solmate/auth/Auth.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
+import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 
 /**
  * @title AtomicSolverV3
  * @author crispymangoes
  */
-contract AtomicSolverV3 is IAtomicSolver, Auth {
+contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     // ========================================= CONSTANTS =========================================
@@ -80,6 +81,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
     )
         external
         requiresAuth
+        nonReentrant
         inSolveContext
     {
         bytes memory runData = abi.encode(SolveType.P2P, msg.sender, minOfferReceived, maxAssets);
@@ -103,6 +105,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth {
     )
         external
         requiresAuth
+        nonReentrant
         inSolveContext
     {
         bytes memory runData = abi.encode(SolveType.REDEEM, msg.sender, minimumAssetsOut, maxAssets, teller);
