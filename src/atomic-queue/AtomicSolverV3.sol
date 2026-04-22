@@ -240,7 +240,15 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         }
 
         // Redeem the shares, sending assets to solver.
-        teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, solver);
+        uint256 assetsOut = teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, solver);
+
+        // Solver economics check: the redeem must cover what users owe.
+        // A sandwich on the teller exchange rate or a stale rate can produce
+        // assetsOut < wantApprovalAmount, making the solve unprofitable. Fail loud
+        // and early before any further state change.
+        if (assetsOut < wantApprovalAmount) {
+            revert AtomicSolverV3___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
+        }
 
         // Approve queue to spend wantApprovalAmount. Zero-reset for USDT-style tokens.
         want.safeApprove(queue, 0);
