@@ -1,0 +1,17 @@
+{
+  "name": "Arbitrum",
+  "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+  "opMessenger": "0x0000000000000000000000000000000000000000",
+  "lzEndpoint": "0x1a44076050125825900e736c501f859c50fE728c",
+  "mailbox": "0x979Ca5202784112f4738403dBec5D0F3B9daabB9",
+  "assetToRateProviderAndPriceFeed": {
+    "NOTE_0_CHAINLINK_1_REDSTONE_2_GENERIC": 0,
+    "NOTE_THESE_KEYS_MUST_NOT_BE_CHECKSUMMED": 0,
+    "maxTimeFromLastUpdate": "86400",
+    "0xaf88d065e77c8cc2239327c5edb3a432268e5831": {
+      "isPeggedToBase": true,
+      "rateProvider": "0x0000000000000000000000000000000000000000",
+      "priceFeed": "0x0000000000000000000000000000000000000000"
+    }
+  }
+}

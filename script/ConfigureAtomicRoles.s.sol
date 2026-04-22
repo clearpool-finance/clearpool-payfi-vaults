@@ -119,9 +119,15 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
-        // Allow AtomicQueue to call finishSolve on AtomicSolver
-        authority.setPublicCapability(
-            atomicSolver, bytes4(keccak256("finishSolve(bytes,address,address,address,uint256,uint256)")), true
+        // Allow AtomicQueue (via QUEUE_ROLE) to call finishSolve on AtomicSolver.
+        // MUST be role-gated — finishSolve decodes caller-supplied runData into a `solver`
+        // address then `safeTransferFrom(solver, ...)`, so making it public lets any address
+        // drain any wallet that has approved AtomicSolver. See [date] incident.
+        authority.setRoleCapability(
+            QUEUE_ROLE,
+            atomicSolver,
+            bytes4(keccak256("finishSolve(bytes,address,address,address,uint256,uint256)")),
+            true
         );
 
         // Allow AtomicSolver to call bulkWithdraw on Teller (for redeem solve)

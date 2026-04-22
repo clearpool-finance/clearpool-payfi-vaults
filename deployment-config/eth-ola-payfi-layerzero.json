@@ -1,0 +1,63 @@
+{
+  "base": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "protocolAdmin": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
+  "boringVaultAndBaseDecimals": "6",
+  "boringVault": {
+    "boringVaultSalt": "0x2ddd634c506ad203da17ff000000000000000000000000000000000000020a02",
+    "boringVaultName": "Ola - PayFi",
+    "boringVaultSymbol": "cpOLA",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "manager": {
+    "managerSalt": "0x40432d4b4ec00003b4a250000000000000000000000000000000000000020a02",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "accountant": {
+    "accountantSalt": "0x7a184dbea6f3cc0318679f000000000000000000000000000000000000020a02",
+    "payoutAddress": "0x9b56480F669b56248B90bFb39D7c810782E9657c",
+    "allowedExchangeRateChangeUpper": "10010",
+    "allowedExchangeRateChangeLower": "10000",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "100",
+    "lendingRate": "0",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "teller": {
+    "tellerSalt": "0x61f8968749a56d01202c91000000000000000000000000000000000000020a02",
+    "maxGasForPeer": 100000,
+    "minGasForPeer": 0,
+    "peerEid": 30101,
+    "tellerContractName": "MultiChainLayerZeroTellerWithMultiAssetSupport",
+    "dvnIfNoDefault": {
+      "required": [],
+      "optional": [],
+      "blockConfirmationsRequiredIfNoDefault": 15,
+      "optionalThreshold": 1
+    },
+    "assets": [],
+    "depositCap": 10000000,
+    "accessControlMode": "2",
+    "initialWhitelist": [
+      "0xf9b0445770341d88a77d384c5bef582a27534865",
+      "0x5898e09a4ac5798a93ee08356318299e00a7A837"
+    ],
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "rolesAuthoritySalt": "0x76bbc3b3b3000b01466a3a000000000000000000000000000000000000020a02",
+    "strategist": "0x922794715EFdEe4D92b7c3963DF3E32696759332",
+    "additionalStrategists": [
+      "0x9b56480F669b56248B90bFb39D7c810782E9657c",
+      "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c",
+      "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504"
+    ],
+    "exchangeRateBot": "0x9b56480F669b56248B90bFb39D7c810782E9657c",
+    "pauser": "0x9b56480F669b56248B90bFb39D7c810782E9657c",
+    "operator": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "decoder": {
+    "decoderSalt": "0x58b53893da2e0b0248268c000000000000000000000000000000000000020a02",
+    "address": "0x0000000000000000000000000000000000000000"
+  }
+}
