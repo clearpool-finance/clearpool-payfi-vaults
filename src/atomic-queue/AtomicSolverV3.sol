@@ -152,6 +152,25 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         }
     }
 
+    //============================== ADMIN ===============================
+
+    event Rescued(address indexed token, address indexed to, uint256 amount);
+
+    /**
+     * @notice Sweep stranded tokens out of the contract.
+     * @dev Gated by `requiresAuth` (owner or a rescuer role). Blocked while a solve
+     *      is in flight so a compromised admin cannot race an ongoing settlement.
+     *      Emits an event for off-chain monitoring.
+     *      The contract is not designed to hold user funds between solves — this is
+     *      for dust, wrong-chain airdrops, or residue from an FoT/rebase edge case.
+     */
+    function rescue(ERC20 token, uint256 amount, address to) external requiresAuth {
+        if (to == address(0)) revert AtomicSolverV3___ZeroAddress();
+        if (_inSolveContext != 0) revert AtomicSolverV3___AlreadyInSolveContext();
+        token.safeTransfer(to, amount);
+        emit Rescued(address(token), to, amount);
+    }
+
     //============================== HELPER FUNCTIONS ===============================
 
     /**
