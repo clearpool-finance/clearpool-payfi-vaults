@@ -31,6 +31,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     //============================== ERRORS ===============================
 
     error AtomicSolverV3___WrongInitiator();
+    error AtomicSolverV3___WrongQueue(address expected, address actual);
     error AtomicSolverV3___AlreadyInSolveContext();
     error AtomicSolverV3___NotInSolveContext();
     error AtomicSolverV3___FailedToSolve();
@@ -52,13 +53,23 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
      */
     uint256 private _inSolveContext;
 
+    /**
+     * @notice Queue address snapshotted on entry to p2pSolve / redeemSolve.
+     * @dev Asserted to equal msg.sender in finishSolve. Defeats the cascade where a
+     *      compromised OPERATOR grants QUEUE_ROLE to a rogue queue and wraps an
+     *      attacker-controlled finishSolve inside a legitimate p2pSolve call.
+     */
+    address private _expectedQueue;
+
     //============================== MODIFIERS ===============================
 
-    modifier inSolveContext() {
+    modifier inSolveContext(address queue) {
         if (_inSolveContext != 0) revert AtomicSolverV3___AlreadyInSolveContext();
         _inSolveContext = 1;
+        _expectedQueue = queue;
         _;
         _inSolveContext = 0;
+        _expectedQueue = address(0);
     }
 
     //============================== IMMUTABLES ===============================
@@ -85,7 +96,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         external
         requiresAuth
         nonReentrant
-        inSolveContext
+        inSolveContext(address(queue))
     {
         bytes memory runData = abi.encode(SolveType.P2P, msg.sender, minOfferReceived, maxAssets);
 
@@ -109,7 +120,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         external
         requiresAuth
         nonReentrant
-        inSolveContext
+        inSolveContext(address(queue))
     {
         bytes memory runData = abi.encode(SolveType.REDEEM, msg.sender, minimumAssetsOut, maxAssets, teller);
 
@@ -139,6 +150,9 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         requiresAuth
     {
         if (_inSolveContext != 1) revert AtomicSolverV3___NotInSolveContext();
+        // Assert the callback comes from the exact queue whose solve() we invoked,
+        // not a sibling queue that may hold QUEUE_ROLE.
+        if (msg.sender != _expectedQueue) revert AtomicSolverV3___WrongQueue(_expectedQueue, msg.sender);
         if (initiator != address(this)) revert AtomicSolverV3___WrongInitiator();
 
         address queue = msg.sender;
@@ -209,14 +223,17 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
             revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
         }
 
-        // Transfer offer to solver.
-        offer.safeTransfer(solver, offerReceived);
-
-        // Approve queue to spend wantApprovalAmount.
+        // Approve queue to spend wantApprovalAmount BEFORE the outbound offer transfer.
         // Zero-reset first for USDT-style tokens whose approve() reverts when
         // allowance > 0 && amount > 0.
+        // Ordering approvals first hardens against any future ERC777-style hook on
+        // `offer` that observes contract state at the moment of safeTransfer — though
+        // no currently-reachable function writes to anything sensitive mid-callback.
         want.safeApprove(queue, 0);
         want.safeApprove(queue, wantApprovalAmount);
+
+        // Transfer offer to solver.
+        offer.safeTransfer(solver, offerReceived);
     }
 
     /**

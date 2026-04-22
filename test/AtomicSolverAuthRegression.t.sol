@@ -97,6 +97,26 @@ contract AtomicSolverAuthRegression is Test {
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
+    function test_rogueQueueWithQueueRoleStillBlocked() public {
+        _wireCorrect();
+
+        // Simulate RT-2 finding F-1: a compromised OPERATOR grants QUEUE_ROLE to a
+        // second address (rogue queue). Even though the rogue queue passes requiresAuth,
+        // the _expectedQueue check must reject the callback because no p2pSolve with
+        // `queue = rogueQueue` has been initiated. We simulate this by first entering
+        // a solve via a different path then having the wrong queue attempt the callback.
+        // In practice here we just verify: any address calling finishSolve without first
+        // triggering p2pSolve from that queue sees NotInSolveContext / WrongQueue.
+        address rogueQueue = address(0xBadBadBad);
+        authority.setUserRole(rogueQueue, QUEUE_ROLE, true);
+
+        bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, victim, uint256(0), type(uint256).max);
+
+        vm.prank(rogueQueue);
+        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___NotInSolveContext.selector);
+        solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
+    }
+
     function test_correctWiring_queueCanPassAuthButLockBlocksDirectCall() public {
         _wireCorrect();
 
