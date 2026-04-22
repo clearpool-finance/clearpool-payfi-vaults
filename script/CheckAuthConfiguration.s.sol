@@ -31,8 +31,7 @@ contract CheckAuthConfiguration is BaseScript {
         bytes4(keccak256("p2pSolve(address,address,address,address[],uint256,uint256)"));
     bytes4 private constant REDEEM_SOLVE_SELECTOR =
         bytes4(keccak256("redeemSolve(address,address,address,address[],uint256,uint256,address)"));
-    bytes4 private constant QUEUE_SOLVE_SELECTOR =
-        bytes4(keccak256("solve(address,address,address[],bytes,address)"));
+    bytes4 private constant QUEUE_SOLVE_SELECTOR = bytes4(keccak256("solve(address,address,address[],bytes,address)"));
     bytes4 private constant MANAGE_SINGLE_SELECTOR = bytes4(keccak256("manage(address,bytes,uint256)"));
     bytes4 private constant MANAGE_BATCH_SELECTOR = bytes4(keccak256("manage(address[],bytes[],uint256[])"));
 
@@ -98,8 +97,7 @@ contract CheckAuthConfiguration is BaseScript {
 
         // === POSITIVE ASSERTIONS — the intended legitimate call paths MUST work ===
         require(
-            authority.doesUserHaveRole(config.atomicQueue, QUEUE_ROLE),
-            "CheckAuth: atomicQueue must hold QUEUE_ROLE"
+            authority.doesUserHaveRole(config.atomicQueue, QUEUE_ROLE), "CheckAuth: atomicQueue must hold QUEUE_ROLE"
         );
         require(
             authority.canCall(config.atomicQueue, config.atomicSolver, FINISH_SOLVE_SELECTOR),

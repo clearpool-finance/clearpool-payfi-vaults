@@ -182,7 +182,7 @@ contract DeployRolesAuthority is BaseScript {
         rolesAuthority.setRoleCapability(
             OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setUserRole.selector, true
         );
-        
+
         // Allow OPERATOR_ROLE to set role capabilities
         rolesAuthority.setRoleCapability(
             OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setRoleCapability.selector, true
