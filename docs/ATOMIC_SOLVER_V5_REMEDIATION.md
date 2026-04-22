@@ -1,13 +1,13 @@
-# AtomicSolverV3 — Hack Report Validation & Remediation
+# AtomicSolverV5 — Hack Report Validation & Remediation
 
 **Source report:** `hack-report.md.pdf` (2026-04-21, adversarial AI audit)
-**Target contract:** `src/atomic-queue/AtomicSolverV3.sol` (pragma 0.8.22)
+**Target contract:** `src/atomic-queue/AtomicSolverV5.sol` (pragma 0.8.22)
 **Reviewed against:** `54b670d` (post `e137ca9` "Finish solve must be private") on `main`
 **Branch:** `security/atomicsolverv3-remediation` — 17 commits, 146/146 tests passing.
 
-**Status:** All 12 hack-report findings validated and fixed. The one originally deferred finding (I-2, batch isolation) is partially addressed via submission-time validation; the remaining keeper-breaking portion is intentionally scoped to a separate PR. Plus one HIGH-severity red-team finding (rogue-queue cascade) identified and fixed. Plus two operational tightening PRs (OPERATOR authority, `rescue` wiring) folded in as a single package.
+**Status:** All 12 hack-report findings validated and fixed. The one originally deferred finding (I-2, batch isolation) is partially addressed via submission-time validation; the remaining keeper-breaking portion is intentionally scoped to a separate PR. Plus one HIGH-severity clearpool team finding (rogue-queue cascade) identified and fixed. Plus two operational tightening PRs (OPERATOR authority, `rescue` wiring) folded in as a single package.
 
-**The solver is solid.** Every in-contract invariant the hack report called for is now enforced on-chain, every auth invariant is enforced at deploy-time via `CheckAuthConfiguration`, and the regression suite covers both the original exploit calldata and the red-team cascade.
+**The solver is solid.** Every in-contract invariant the hack report called for is now enforced on-chain, every auth invariant is enforced at deploy-time via `CheckAuthConfiguration`, and the regression suite covers both the original exploit calldata and the clearpool team cascade.
 
 ---
 
@@ -32,9 +32,9 @@ Status is as of the `security/atomicsolverv3-remediation` branch.
 
 **All 12 findings addressed.** I-2 is split: the submission-time half (`updateAtomicRequest` validation) ships on this branch; the `AtomicQueue.solve` skip-and-emit half is intentionally scheduled as its own PR because it changes batch semantics that keeper bots rely on — shipping it here would silently break integrators.
 
-Additionally, one **HIGH-severity finding surfaced by red-team review** (RT-2/F-1 — rogue queue via OPERATOR_ROLE) was identified and fixed in both the contract (`125abbb`) and the deploy scripts (`96fc2af`). See §3.12 and `ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md`.
+Additionally, one **HIGH-severity finding surfaced by clearpool team review** (CT-2/F-1 — rogue queue via OPERATOR_ROLE) was identified and fixed in both the contract (`125abbb`) and the deploy scripts (`96fc2af`). See §3.12 and `ATOMIC_SOLVER_V5_CLEARPOOL_REVIEW.md`.
 
-All line numbers refer to `src/atomic-queue/AtomicSolverV3.sol` *pre-branch*; the report's `sc.sol` numbering is ~3 off (the report appears to have been generated against a stripped copy without the license header).
+All line numbers refer to `src/atomic-queue/AtomicSolverV5.sol` *pre-branch*; the report's `sc.sol` numbering is ~3 off (the report appears to have been generated against a stripped copy without the license header).
 
 ---
 
@@ -58,7 +58,7 @@ On the exact vulnerability class this branch addresses, **V4 is weaker than our 
 | Approve-before-outbound-transfer (CEI hardening) | ✅ | ❌ |
 | Constructor `_owner != address(0)` | ✅ | ❌ |
 
-V4's own NatSpec still asserts *"nonReentrant is not needed because ... msg.sender is the queue"* — the exact reasoning our red-team exercise identified as wrong (RT-2/F-1). If an OPERATOR ever grants `QUEUE_ROLE` to a rogue queue, V4 is drained; our patched V3 is not.
+V4's own NatSpec still asserts *"nonReentrant is not needed because ... msg.sender is the queue"* — the exact reasoning our clearpool team exercise identified as wrong (CT-2/F-1). If an OPERATOR ever grants `QUEUE_ROLE` to a rogue queue, V4 is drained; our patched V3 is not.
 
 Two further blockers rule V4 out:
 - **License.** V4 is released under Veda's `SEL-1.0` "TEST ONLY – NO COMMERCIAL USE" license. Our fork is Apache-2.0; adopting V4 into a production fork is not permitted.
@@ -96,13 +96,13 @@ Severity-ordered. Each entry states the bug, **the code that actually shipped** 
 
 **Bug.** `finishSolve` had no on-chain proof it was reached via a legitimate `p2pSolve` → `queue.solve()` → callback. Security rested entirely on Authority wiring.
 
-**Shipped.** A 1-slot flag written by a new modifier on both outer solve entry points, asserted in `finishSolve`. The previously-declared-but-unused `AtomicSolverV3___AlreadyInSolveContext` error (L-2) is now live.
+**Shipped.** A 1-slot flag written by a new modifier on both outer solve entry points, asserted in `finishSolve`. The previously-declared-but-unused `AtomicSolverV5___AlreadyInSolveContext` error (L-2) is now live.
 
 ```solidity
 uint256 private _inSolveContext;
 
 modifier inSolveContext(address queue) {   // see §3.12 for why `queue` is a param
-    if (_inSolveContext != 0) revert AtomicSolverV3___AlreadyInSolveContext();
+    if (_inSolveContext != 0) revert AtomicSolverV5___AlreadyInSolveContext();
     _inSolveContext = 1;
     _expectedQueue  = queue;
     _;
@@ -114,9 +114,9 @@ function p2pSolve(...) external requiresAuth nonReentrant inSolveContext(address
 function redeemSolve(...) external requiresAuth nonReentrant inSolveContext(address(queue)) { ... }
 
 function finishSolve(...) external requiresAuth {
-    if (_inSolveContext != 1) revert AtomicSolverV3___NotInSolveContext();
-    if (msg.sender != _expectedQueue) revert AtomicSolverV3___WrongQueue(_expectedQueue, msg.sender);
-    if (initiator  != address(this)) revert AtomicSolverV3___WrongInitiator();
+    if (_inSolveContext != 1) revert AtomicSolverV5___NotInSolveContext();
+    if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(_expectedQueue, msg.sender);
+    if (initiator  != address(this)) revert AtomicSolverV5___WrongInitiator();
     ...
 }
 ```
@@ -135,10 +135,10 @@ function finishSolve(...) external requiresAuth {
 
 ```solidity
 import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
-contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard { ... }
+contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard { ... }
 ```
 
-**Research citation.** Modern solver hardening (Morpho Blue, Euler V2, Compound Comet) consistently pairs `nonReentrant` with provenance checks — the former closes token-hook reentry, the latter closes callback spoofing. Storage-slot audit: `Auth (2 slots) → ReentrancyGuard (1 slot) → solver state` — no collisions (verified in RT-1 / F-6 of the red-team report).
+**Research citation.** Modern solver hardening (Morpho Blue, Euler V2, Compound Comet) consistently pairs `nonReentrant` with provenance checks — the former closes token-hook reentry, the latter closes callback spoofing. Storage-slot audit: `Auth (2 slots) → ReentrancyGuard (1 slot) → solver state` — no collisions (verified in CT-1 / F-6 of the clearpool team report).
 
 ### 3.3. [H-2] USDT-safe zero-reset — ✅ SHIPPED (`9b66de4`)
 
@@ -166,7 +166,7 @@ uint256 balBefore = want.balanceOf(address(this));
 want.safeTransferFrom(solver, address(this), wantApprovalAmount);
 uint256 received = want.balanceOf(address(this)) - balBefore;
 if (received < wantApprovalAmount) {
-    revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
+    revert AtomicSolverV5___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
 }
 ```
 
@@ -191,10 +191,10 @@ uint256 balBefore  = want.balanceOf(address(this));
 uint256 assetsOut  = teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, address(this));
 uint256 received   = want.balanceOf(address(this)) - balBefore;
 
-if (received  < wantApprovalAmount) revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
-if (assetsOut < wantApprovalAmount) revert AtomicSolverV3___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
+if (received  < wantApprovalAmount) revert AtomicSolverV5___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
+if (assetsOut < wantApprovalAmount) revert AtomicSolverV5___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
 
-want.safeApprove(queue, 0);                          // approvals set BEFORE outbound transfer (RT-1 hardening §3.13)
+want.safeApprove(queue, 0);                          // approvals set BEFORE outbound transfer (CT-1 hardening §3.13)
 want.safeApprove(queue, wantApprovalAmount);
 
 uint256 solverProfit = received - wantApprovalAmount;
@@ -205,7 +205,7 @@ if (solverProfit != 0) want.safeTransfer(solver, solverProfit);
 - CEI is now clean — `bulkWithdraw` sends proceeds into our own custody; no inbound `transferFrom` after an external call.
 - FoT is caught by the `received < wantApprovalAmount` branch (M-1+H-3 together).
 - Under-proceed attacks are caught by the `assetsOut < wantApprovalAmount` branch (M-4).
-- The solver bot no longer needs a standing allowance to this contract for `want` assets — that removes an attack surface entirely (see RT-2/F-1 post-mortem).
+- The solver bot no longer needs a standing allowance to this contract for `want` assets — that removes an attack surface entirely (see CT-2/F-1 post-mortem).
 - One fewer ERC20 call per solve (single `safeTransfer` of profit replaces round-trip `transferFrom + transfer`).
 
 **Research citation.** Strict CEI is sufficient here because the callee (teller) doesn't observe state affecting our accounting. The research brief from `sc-research` agent confirmed this: for solver/aggregator flows (category 2 per ToB 2025 taxonomy), CEI + `nonReentrant` + access control are the minimum three layers.
@@ -216,7 +216,7 @@ if (solverProfit != 0) want.safeTransfer(solver, solverProfit);
 
 ```solidity
 constructor(address _owner, Authority _authority) Auth(_owner, _authority) {
-    if (_owner == address(0)) revert AtomicSolverV3___ZeroAddress();
+    if (_owner == address(0)) revert AtomicSolverV5___ZeroAddress();
 }
 ```
 
@@ -238,8 +238,8 @@ Now emitted by the `inSolveContext` modifier on attempted reentry. Zero follow-u
 event Rescued(address indexed token, address indexed to, uint256 amount);
 
 function rescue(ERC20 token, uint256 amount, address to) external requiresAuth {
-    if (to == address(0))        revert AtomicSolverV3___ZeroAddress();
-    if (_inSolveContext != 0)    revert AtomicSolverV3___AlreadyInSolveContext();
+    if (to == address(0))        revert AtomicSolverV5___ZeroAddress();
+    if (_inSolveContext != 0)    revert AtomicSolverV5___AlreadyInSolveContext();
     token.safeTransfer(to, amount);
     emit Rescued(address(token), to, amount);
 }
@@ -249,7 +249,7 @@ function rescue(ERC20 token, uint256 amount, address to) external requiresAuth {
 
 **Research citation.** Per the `sc-research` brief citing Trail of Bits' June 2025 "Maturing beyond private key risk": contracts that persistently hold user deposits should be timelocked; contracts that only transiently hold funds (solvers) need event emission + gated auth, which is what we ship. The `_inSolveContext` guard is an additional hardening that's specific to this contract's lifecycle.
 
-**⚠️ Operational gotcha (RT-2/F-2).** `rescue` is `requiresAuth`-gated but no deploy script currently grants `rescue.selector` to any role. Until a role is wired or ownership is transferred to the protocol multisig, **only the deployer EOA can call `rescue`**. Tracked as follow-up PRs #2 and #3 in §5.
+**⚠️ Operational gotcha (CT-2/F-2).** `rescue` is `requiresAuth`-gated but no deploy script currently grants `rescue.selector` to any role. Until a role is wired or ownership is transferred to the protocol multisig, **only the deployer EOA can call `rescue`**. Tracked as follow-up PRs #2 and #3 in §5.
 
 ### 3.11. [I-2] Batch failure isolation — ⚠️ DEFERRED
 
@@ -269,9 +269,9 @@ for (uint256 i; i < users.length; ++i) {
 }
 ```
 
-### 3.12. [RT-2/F-1] Rogue-queue defense — ✅ SHIPPED (`125abbb`)
+### 3.12. [CT-2/F-1] Rogue-queue defense — ✅ SHIPPED (`125abbb`)
 
-**Not in the original hack report — surfaced by the red-team review.**
+**Not in the original hack report — surfaced by the clearpool team review.**
 
 **Bug.** `OPERATOR_ROLE` was granted `setRoleCapability` / `setUserRole` on the Authority in the same commit that hotfixed C-1 (`e137ca9`). A compromised operator could `setUserRole(rogueQueue, QUEUE_ROLE, true)` and then call `solver.p2pSolve(rogueQueue, …)`. Inside that call `queue.solve` dispatches to the attacker's queue, which callbacks `finishSolve` with attacker-chosen `runData` — `_inSolveContext == 1` passes (we ARE in a live solve), `initiator == address(this)` passes (queues hard-code it), and `requiresAuth` passes (rogueQueue holds `QUEUE_ROLE`). The solver then executes `safeTransferFrom(victim, address(this), …)` on whoever the attacker names. Full C-1 drain, just via a legitimate `p2pSolve` wrapper.
 
@@ -281,9 +281,9 @@ for (uint256 i; i < users.length; ++i) {
 address private _expectedQueue;      // reset to address(0) by the inSolveContext modifier
 
 function finishSolve(...) external requiresAuth {
-    if (_inSolveContext != 1)         revert AtomicSolverV3___NotInSolveContext();
-    if (msg.sender != _expectedQueue) revert AtomicSolverV3___WrongQueue(_expectedQueue, msg.sender);
-    if (initiator != address(this))   revert AtomicSolverV3___WrongInitiator();
+    if (_inSolveContext != 1)         revert AtomicSolverV5___NotInSolveContext();
+    if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(_expectedQueue, msg.sender);
+    if (initiator != address(this))   revert AtomicSolverV5___WrongInitiator();
     ...
 }
 ```
@@ -296,9 +296,9 @@ function finishSolve(...) external requiresAuth {
 
 **Off-chain follow-up (not on this branch).** Remove `setRoleCapability` from `OPERATOR_ROLE`. Tracked as follow-up PR #1 in §5.
 
-### 3.13. [RT-1 hardening] Approve-before-outbound-transfer — ✅ SHIPPED (`125abbb` + `fec065a`)
+### 3.13. [CT-1 hardening] Approve-before-outbound-transfer — ✅ SHIPPED (`125abbb` + `fec065a`)
 
-**Hardening, not a bug.** Red-team review recommended moving `want.safeApprove(queue, ...)` ahead of the outbound `offer.safeTransfer(solver, ...)` (p2p path) and `want.safeTransfer(solver, solverProfit)` (redeem path). No currently-reachable function writes sensitive state mid-callback, but the ordering defends against any future refactor that might add one.
+**Hardening, not a bug.** Clearpool team review recommended moving `want.safeApprove(queue, ...)` ahead of the outbound `offer.safeTransfer(solver, ...)` (p2p path) and `want.safeTransfer(solver, solverProfit)` (redeem path). No currently-reachable function writes sensitive state mid-callback, but the ordering defends against any future refactor that might add one.
 
 Applied to both paths. Pure defense-in-depth.
 
@@ -306,11 +306,11 @@ Applied to both paths. Pure defense-in-depth.
 
 ## 4. Shipped commit log
 
-All 11 solver-side findings (plus the RT-surfaced rogue-queue fix) are on branch `security/atomicsolverv3-remediation`:
+All 11 solver-side findings (plus the clearpool-team-surfaced rogue-queue fix) are on branch `security/atomicsolverv3-remediation`:
 
 ```
-fec065a  harden(RT-1):       approve-before-outbound-transfer (redeem path)
-125abbb  fix(RT-2/F-1):      msg.sender == _expectedQueue in finishSolve + p2p approve reorder
+fec065a  harden(CT-1):       approve-before-outbound-transfer (redeem path)
+125abbb  fix(CT-2/F-1):      msg.sender == _expectedQueue in finishSolve + p2p approve reorder
 4cd0a0e  fix(M-1, M-4):      redirect bulkWithdraw to self; pay solver profit last
 fc4cfdd  feat(I-1):          restricted rescue(token, amount, to)
 0e5ae44  chore(L-1):         remove unused eETH/weETH constants
@@ -323,7 +323,7 @@ cd81197  fix(H-1):           ReentrancyGuard + nonReentrant on outer paths
 3b86fb7  fix(C-1/M-2/L-2):   in-contract solve-context lock (+ wires up L-2 error)
 3cee179  chore:              forge fmt on auth scripts
 a3c209e  docs:               initial remediation plan (this file's predecessor)
-6524195  docs:               red-team report + contract surface inventory
+6524195  docs:               clearpool team report + contract surface inventory
 ```
 
 **Tests:** 146 / 146 passing (`forge test`), including a new `test_rogueQueueWithQueueRoleStillBlocked` for §3.12.
@@ -340,7 +340,7 @@ Commits `bfdcff0` / `9a97f84` are retained for audit trail; their effective diff
 |---|---|---|
 | 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol`. | `96fc2af` |
 | 2 | Add `CheckAuthConfiguration` assertions: solver `owner() == protocolAdmin`, operator can call `rescue`, operator CANNOT `setRoleCapability`. | `96fc2af` |
-| 3 | Wire `OPERATOR_ROLE` to `AtomicSolverV3.rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
+| 3 | Wire `OPERATOR_ROLE` to `AtomicSolverV5.rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
 | 4 | Delete `src/atomic-queue/AtomicSolverV2.sol` (zero deploy references). `AtomicSolver.sol` (V1) kept because `test/EtherFiLiquid1Migration.t.sol` still imports it for legacy-path testing; track V1 deletion with that test's eventual retirement. | `36fabe3` |
 | 6 | Validate `updateAtomicRequest` preconditions (deadline, balance, allowance) in `AtomicQueue`. | `f3e2fd4` |
 
