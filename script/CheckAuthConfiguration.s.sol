@@ -122,6 +122,27 @@ contract CheckAuthConfiguration is BaseScript {
             RolesAuthority(config.rolesAuthority).owner() == config.protocolAdmin,
             "CheckAuth: authority owner must equal protocolAdmin"
         );
+        // AtomicSolverV3 ownership: rescue() falls back to `owner()` if no role is wired.
+        // Until setOwner(protocolAdmin) has been run, only the deployer EOA can rescue.
+        // See RT-2 / F-2 in docs/ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md.
+        require(
+            AtomicSolverV3(config.atomicSolver).owner() == config.protocolAdmin,
+            "CheckAuth: atomicSolver owner must equal protocolAdmin"
+        );
+        // OPERATOR_ROLE must be able to call rescue() — otherwise stuck tokens
+        // can only be swept by the (potentially rotated / lost) deployer EOA.
+        require(
+            authority.canCall(
+                config.operator, config.atomicSolver, bytes4(keccak256("rescue(address,uint256,address)"))
+            ),
+            "CheckAuth: operator must be able to call rescue on atomicSolver"
+        );
+        // OPERATOR_ROLE must NOT hold setRoleCapability on the authority itself — that
+        // combination enables the rogue-queue cascade (RT-2 / F-1).
+        require(
+            !authority.canCall(config.operator, config.rolesAuthority, RolesAuthority.setRoleCapability.selector),
+            "CheckAuth: operator MUST NOT hold setRoleCapability on authority (rogue-queue risk)"
+        );
         // protocolAdmin should be a contract (Safe), not an EOA. Any EOA-held governance
         // key is a single-point-of-failure pivot.
         uint256 adminSize;
