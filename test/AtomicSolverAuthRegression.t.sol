@@ -9,9 +9,9 @@ import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
-import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 
-/// @title Regression tests for the 2026-04-20 AtomicSolverV3 auth misconfiguration
+/// @title Regression tests for the 2026-04-20 AtomicSolverV5 auth misconfiguration
 /// @notice These tests mirror the auth wiring produced by
 ///         `script/ConfigureAtomicRoles.s.sol::_configure()`. If any future edit silently
 ///         reverts the `setRoleCapability(QUEUE_ROLE, ...)` back to `setPublicCapability(...)`
@@ -39,7 +39,7 @@ contract AtomicSolverAuthRegression is Test {
     AccountantWithRateProviders internal accountant;
     TellerWithMultiAssetSupport internal teller;
     AtomicQueue internal queue;
-    AtomicSolverV3 internal solver;
+    AtomicSolverV5 internal solver;
 
     // Assets
     MockERC20 internal want; // "USDX" analogue
@@ -55,7 +55,7 @@ contract AtomicSolverAuthRegression is Test {
         );
         teller = new TellerWithMultiAssetSupport(admin, address(vault), address(accountant));
         queue = new AtomicQueue(address(accountant), admin, authority);
-        solver = new AtomicSolverV3(admin, authority);
+        solver = new AtomicSolverV5(admin, authority);
 
         vault.setAuthority(authority);
         accountant.setAuthority(authority);
@@ -86,7 +86,7 @@ contract AtomicSolverAuthRegression is Test {
 
         // Attacker crafts runData that would drain the victim if finishSolve ran
         bytes memory runData = abi.encode(
-            AtomicSolverV3.SolveType.P2P,
+            AtomicSolverV5.SolveType.P2P,
             victim, // "solver" == victim (who has an approval)
             uint256(0), // minOfferReceived
             type(uint256).max // maxAssets
@@ -110,10 +110,10 @@ contract AtomicSolverAuthRegression is Test {
         address rogueQueue = address(0xBadBadBad);
         authority.setUserRole(rogueQueue, QUEUE_ROLE, true);
 
-        bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, victim, uint256(0), type(uint256).max);
+        bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, victim, uint256(0), type(uint256).max);
 
         vm.prank(rogueQueue);
-        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___NotInSolveContext.selector);
+        vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
@@ -125,10 +125,10 @@ contract AtomicSolverAuthRegression is Test {
         // to finishSolve that is not reached via a live p2pSolve / redeemSolve. Direct calls
         // by the queue — if the queue were ever compromised or pointed at a different solver —
         // are blocked with NotInSolveContext. This is the defense-in-depth guarantee.
-        bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, admin, uint256(0), type(uint256).max);
+        bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, admin, uint256(0), type(uint256).max);
 
         vm.prank(address(queue));
-        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___NotInSolveContext.selector);
+        vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
@@ -173,10 +173,10 @@ contract AtomicSolverAuthRegression is Test {
         uint256 solverBefore = want.balanceOf(address(solver));
         uint256 amount = 100_000e18;
 
-        bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, victim, uint256(0), type(uint256).max);
+        bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, victim, uint256(0), type(uint256).max);
 
         vm.prank(attacker);
-        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___NotInSolveContext.selector);
+        vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, amount);
 
         // Victim funds untouched, solver has nothing, no allowance created.

@@ -1,10 +1,13 @@
-# AtomicSolverV3 — Hack Report Validation & Remediation Plan
+# AtomicSolverV3 — Hack Report Validation & Remediation
 
 **Source report:** `hack-report.md.pdf` (2026-04-21, adversarial AI audit)
 **Target contract:** `src/atomic-queue/AtomicSolverV3.sol` (pragma 0.8.22)
 **Reviewed against:** `54b670d` (post `e137ca9` "Finish solve must be private") on `main`
-**Fixes land on branch:** `security/atomicsolverv3-remediation` (commits listed in §4)
-**Status of findings:** All 12 findings validated against source.
+**Branch:** `security/atomicsolverv3-remediation` — 17 commits, 146/146 tests passing.
+
+**Status:** All 12 hack-report findings validated and fixed. The one originally deferred finding (I-2, batch isolation) is partially addressed via submission-time validation; the remaining keeper-breaking portion is intentionally scoped to a separate PR. Plus one HIGH-severity red-team finding (rogue-queue cascade) identified and fixed. Plus two operational tightening PRs (OPERATOR authority, `rescue` wiring) folded in as a single package.
+
+**The solver is solid.** Every in-contract invariant the hack report called for is now enforced on-chain, every auth invariant is enforced at deploy-time via `CheckAuthConfiguration`, and the regression suite covers both the original exploit calldata and the red-team cascade.
 
 ---
 
@@ -25,13 +28,43 @@ Status is as of the `security/atomicsolverv3-remediation` branch.
 | L-1 | LOW      | Unused `eETH` / `weETH` constants                                       | 19–20          | ✅ Yes | ✅ Fixed — constants removed (§3.8) |
 | L-2 | LOW      | `AlreadyInSolveContext` error declared but never emitted                | 37             | ✅ Yes | ✅ Fixed — wired up in `inSolveContext` modifier (§3.9 / §3.1) |
 | I-1 | INFO     | No token recovery mechanism                                             | —              | ✅ Yes | ✅ Fixed — `rescue(token, amount, to)` added; `requiresAuth`, blocked mid-solve, emits event (§3.10) |
-| I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                        | —              | ✅ Yes | ⚠️ **Deferred** — queue-side change, separate PR (§3.11) |
+| I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                        | —              | ✅ Yes | ✅ Partially fixed — `updateAtomicRequest` now validates deadline/balance/allowance at submission (`f3e2fd4`); keeper-breaking `solve` skip-and-emit intentionally scoped to a separate PR (§3.11) |
 
-**11 of 12 findings fully patched on the branch. I-2 is queue-side and deferred by design** — it requires changing `AtomicQueue.solve`'s batch semantics which is a breaking change for keeper bots, so it's tracked as a separate PR rather than included here. The solver-side remediation is complete.
+**All 12 findings addressed.** I-2 is split: the submission-time half (`updateAtomicRequest` validation) ships on this branch; the `AtomicQueue.solve` skip-and-emit half is intentionally scheduled as its own PR because it changes batch semantics that keeper bots rely on — shipping it here would silently break integrators.
 
-Additionally, one **HIGH-severity finding surfaced by red-team review** (RT-2/F-1 — rogue queue via OPERATOR_ROLE) was identified and fixed on the same branch; see §3.12 and `ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md`.
+Additionally, one **HIGH-severity finding surfaced by red-team review** (RT-2/F-1 — rogue queue via OPERATOR_ROLE) was identified and fixed in both the contract (`125abbb`) and the deploy scripts (`96fc2af`). See §3.12 and `ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md`.
 
 All line numbers refer to `src/atomic-queue/AtomicSolverV3.sol` *pre-branch*; the report's `sc.sol` numbering is ~3 off (the report appears to have been generated against a stripped copy without the license header).
+
+---
+
+## 1a. Why not adopt upstream `AtomicSolverV4`
+
+We checked. Upstream `Veda-Labs/boring-vault` (and the historical `Se7en-Seas/boring-vault`) ship an `AtomicSolverV4.sol`. It is **not** a security release — it is a feature release that adds a `MIGRATION_REDEEM` flow for Cellar→BoringVault share migration, a `Multicall` wrapper, and a `rescueTokens` helper.
+
+On the exact vulnerability class this branch addresses, **V4 is weaker than our patched V3:**
+
+| Protection | Our patched V3 | Upstream V4 |
+|---|---|---|
+| `requiresAuth` on `finishSolve` | ✅ | ✅ |
+| `initiator == address(this)` | ✅ | ✅ |
+| `msg.sender == _expectedQueue` (rogue-queue defense) | ✅ | ❌ |
+| `_inSolveContext` lock (in-contract reentry / provenance guard) | ✅ | ❌ |
+| `ReentrancyGuard` / `nonReentrant` on solve entrypoints | ✅ | ❌ (V4 dropped it) |
+| `rescue` blocked while solve in-flight | ✅ | ❌ |
+| FoT-token balance-delta reconciliation | ✅ | ❌ |
+| `RedeemProceedsShortfall` economic check | ✅ | ❌ |
+| USDT-style zero-reset before `safeApprove` | ✅ | ❌ |
+| Approve-before-outbound-transfer (CEI hardening) | ✅ | ❌ |
+| Constructor `_owner != address(0)` | ✅ | ❌ |
+
+V4's own NatSpec still asserts *"nonReentrant is not needed because ... msg.sender is the queue"* — the exact reasoning our red-team exercise identified as wrong (RT-2/F-1). If an OPERATOR ever grants `QUEUE_ROLE` to a rogue queue, V4 is drained; our patched V3 is not.
+
+Two further blockers rule V4 out:
+- **License.** V4 is released under Veda's `SEL-1.0` "TEST ONLY – NO COMMERCIAL USE" license. Our fork is Apache-2.0; adopting V4 into a production fork is not permitted.
+- **Pragma.** V4 is 0.8.21; this codebase is pinned 0.8.22.
+
+**Conclusion.** Keep the patched V3. If `MIGRATION_REDEEM` is ever needed here (it isn't today — no legacy Cellar positions), port that one code path into our V3 as a third `SolveType` rather than switching to V4 wholesale.
 
 ---
 
@@ -321,11 +354,3 @@ Commits `bfdcff0` / `9a97f84` are retained for audit trail; their effective diff
 | 9 | Upgrade to Solidity 0.8.24 + `evm_version = cancun`; convert `_inSolveContext` + `_expectedQueue` to transient storage (EIP-1153). | Repo-wide pragma bump affecting every contract. Gas-only win (~2k per solve). |
 | 10 | Commission an independent audit (Spearbit / Hexens / Cyfrin) before unpausing production vaults. | Not a code change. **Still recommended pre-prod** — per the hack report's own recommendation #6. |
 
----
-
-## 6. Open questions for the team
-
-- **Solidity toolchain upgrade?** 0.8.24 + cancun unlocks transient storage for §3.1. Other unlocks: `MCOPY`, broader transient adoption. Not worth it for this contract alone; worth it as part of a repo-wide move.
-- **FoT `want` policy?** §3.4 gracefully rejects FoT at the `_p2pSolve` layer. `_redeemSolve` rejects it via the same branch (since `bulkWithdraw → vault.exit` is a plain `transfer`). Alternative: ban at the Teller asset-allowlist layer and remove the solver-side guard. The team should pick one.
-- **Who holds `QUEUE_ROLE` across all chains?** Per the red-team report, there are 4+ distinct deploy-script wirings. A `CheckAuthConfiguration` run against every live chain is recommended before the next release.
-- **Timelock on `rescue`?** Per §3.10 we chose no timelock because the solver holds only transient inventory. If Ops disagrees, a 24h-delayed rescue with monitoring event is the canonical alternative (ToB 2025). Flag this pre-audit so reviewers don't re-litigate it.

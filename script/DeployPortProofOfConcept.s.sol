@@ -8,7 +8,7 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { RolesAuthority, Authority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
-import { AtomicSolverV3, AtomicQueue } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5, AtomicQueue } from "src/atomic-queue/AtomicSolverV5.sol";
 import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";
 
 import "@forge-std/Script.sol";
@@ -33,7 +33,7 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
     AccountantWithRateProviders public accountant;
     RolesAuthority public rolesAuthority;
     AtomicQueue public atomicQueue;
-    AtomicSolverV3 public atomicSolverV3;
+    AtomicSolverV5 public atomicSolverV3;
 
     ERC20 public USDX = ERC20(0xe29f6fbc4CB3F01e2D38F0Aab7D8861285EE9C36);
 
@@ -60,7 +60,7 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
 
         atomicQueue = new AtomicQueue(address(accountant), address(this), rolesAuthority);
 
-        atomicSolverV3 = new AtomicSolverV3(address(this), rolesAuthority);
+        atomicSolverV3 = new AtomicSolverV5(address(this), rolesAuthority);
 
         /// @dev authority set up
 
@@ -95,11 +95,11 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
             SOLVER_ROLE, address(teller), TellerWithMultiAssetSupport.bulkWithdraw.selector, true
         );
         rolesAuthority.setRoleCapability(
-            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.p2pSolve.selector, true
+            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV5.p2pSolve.selector, true
         );
-        rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV3.finishSolve.selector, true);
+        rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV5.finishSolve.selector, true);
         rolesAuthority.setRoleCapability(
-            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.redeemSolve.selector, true
+            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV5.redeemSolve.selector, true
         );
         rolesAuthority.setRoleCapability(
             MINTER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true

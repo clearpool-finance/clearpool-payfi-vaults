@@ -5,7 +5,7 @@ import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { RolesAuthority, Authority } from "@solmate/auth/authorities/RolesAuthority.sol";
-import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import {
     MultiChainLayerZeroTellerWithMultiAssetSupport
@@ -43,7 +43,7 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
     AccountantWithRateProviders public l1Accountant;
     RolesAuthority public l1Authority;
     AtomicQueue public l1AtomicQueue;
-    AtomicSolverV3 public l1AtomicSolver;
+    AtomicSolverV5 public l1AtomicSolver;
 
     // L2 Contracts
     BoringVault public l2Vault;
@@ -51,7 +51,7 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
     AccountantWithRateProviders public l2Accountant;
     RolesAuthority public l2Authority;
     AtomicQueue public l2AtomicQueue;
-    AtomicSolverV3 public l2AtomicSolver;
+    AtomicSolverV5 public l2AtomicSolver;
 
     function run() public {
         run(vm.addr(1), vm.addr(2), MOCK_LZ_ENDPOINT);
@@ -91,7 +91,7 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
         );
         l1Authority = new RolesAuthority(owner, Authority(address(0)));
         l1AtomicQueue = new AtomicQueue(address(l1Accountant), owner, l1Authority);
-        l1AtomicSolver = new AtomicSolverV3(owner, l1Authority);
+        l1AtomicSolver = new AtomicSolverV5(owner, l1Authority);
 
         // Setup authorities
         l1Vault.setAuthority(l1Authority);
@@ -117,7 +117,7 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
         );
         l2Authority = new RolesAuthority(owner, Authority(address(0)));
         l2AtomicQueue = new AtomicQueue(address(l2Accountant), owner, l2Authority);
-        l2AtomicSolver = new AtomicSolverV3(owner, l2Authority);
+        l2AtomicSolver = new AtomicSolverV5(owner, l2Authority);
 
         // Setup authorities
         l2Vault.setAuthority(l2Authority);
@@ -156,9 +156,9 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
         authority.setRoleCapability(SOLVER_ROLE, teller, TellerWithMultiAssetSupport.bulkWithdraw.selector, true);
 
         // AtomicSolver capabilities
-        authority.setRoleCapability(CAN_SOLVE_ROLE, atomicSolver, AtomicSolverV3.p2pSolve.selector, true);
-        authority.setRoleCapability(CAN_SOLVE_ROLE, atomicSolver, AtomicSolverV3.redeemSolve.selector, true);
-        authority.setRoleCapability(QUEUE_ROLE, atomicSolver, AtomicSolverV3.finishSolve.selector, true);
+        authority.setRoleCapability(CAN_SOLVE_ROLE, atomicSolver, AtomicSolverV5.p2pSolve.selector, true);
+        authority.setRoleCapability(CAN_SOLVE_ROLE, atomicSolver, AtomicSolverV5.redeemSolve.selector, true);
+        authority.setRoleCapability(QUEUE_ROLE, atomicSolver, AtomicSolverV5.finishSolve.selector, true);
 
         // User roles
         authority.setUserRole(owner, ADMIN_ROLE, true);

@@ -11,7 +11,7 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 import { ILiquidityPool } from "src/interfaces/IStaking.sol";
 import { RolesAuthority, Authority } from "@solmate/auth/authorities/RolesAuthority.sol";
-import { AtomicSolverV3, AtomicQueue } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5, AtomicQueue } from "src/atomic-queue/AtomicSolverV5.sol";
 
 import { Test, stdStorage, StdStorage, stdError, console } from "@forge-std/Test.sol";
 
@@ -49,7 +49,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
     ERC20 internal constant NATIVE_ERC20 = ERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
     RolesAuthority public rolesAuthority;
     AtomicQueue public atomicQueue;
-    AtomicSolverV3 public atomicSolverV3;
+    AtomicSolverV5 public atomicSolverV3;
 
     address public solver = vm.addr(54);
     uint256 ONE_SHARE;
@@ -79,7 +79,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
         rolesAuthority = new RolesAuthority(address(this), Authority(address(0)));
 
         atomicQueue = new AtomicQueue(address(accountant), address(this), rolesAuthority);
-        atomicSolverV3 = new AtomicSolverV3(address(this), rolesAuthority);
+        atomicSolverV3 = new AtomicSolverV5(address(this), rolesAuthority);
 
         boringVault.setAuthority(rolesAuthority);
         accountant.setAuthority(rolesAuthority);
@@ -109,9 +109,9 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
         rolesAuthority.setRoleCapability(
             MINTER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true
         );
-        rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV3.finishSolve.selector, true);
+        rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV5.finishSolve.selector, true);
         rolesAuthority.setRoleCapability(
-            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.redeemSolve.selector, true
+            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV5.redeemSolve.selector, true
         );
         rolesAuthority.setPublicCapability(address(teller), TellerWithMultiAssetSupport.deposit.selector, true);
         rolesAuthority.setPublicCapability(

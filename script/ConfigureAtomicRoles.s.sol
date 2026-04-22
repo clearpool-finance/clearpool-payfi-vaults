@@ -77,7 +77,7 @@ contract ConfigureAtomicRoles is BaseScript {
             OPERATOR_ROLE, atomicQueue, bytes4(keccak256("solve(address,address,address[],bytes,address)")), true
         );
 
-        // Allow Borrower to call AtomicSolverV3 functions
+        // Allow Borrower to call AtomicSolverV5 functions
         authority.setRoleCapability(
             STRATEGIST_ROLE,
             atomicSolver,
@@ -91,7 +91,7 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
-        // Allow Cicada to call AtomicSolverV3 functions
+        // Allow Cicada to call AtomicSolverV5 functions
         authority.setRoleCapability(
             UPDATE_EXCHANGE_RATE_ROLE,
             atomicSolver,
@@ -105,7 +105,7 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
-        // Allow Operator to call AtomicSolverV3 functions
+        // Allow Operator to call AtomicSolverV5 functions
         authority.setRoleCapability(
             OPERATOR_ROLE,
             atomicSolver,
@@ -119,7 +119,7 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
-        // Allow OPERATOR_ROLE to call rescue() on AtomicSolverV3. Without this wiring,
+        // Allow OPERATOR_ROLE to call rescue() on AtomicSolverV5. Without this wiring,
         // `rescue` is reachable only by the contract owner (the deployer EOA until
         // setOwner is run), which is a stuck-funds risk per RT-2 / F-2.
         authority.setRoleCapability(

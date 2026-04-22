@@ -9,10 +9,10 @@ import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 
 /**
- * @title AtomicSolverV3
+ * @title AtomicSolverV5
  * @author crispymangoes
  */
-contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
+contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -30,17 +30,17 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
 
     //============================== ERRORS ===============================
 
-    error AtomicSolverV3___WrongInitiator();
-    error AtomicSolverV3___WrongQueue(address expected, address actual);
-    error AtomicSolverV3___AlreadyInSolveContext();
-    error AtomicSolverV3___NotInSolveContext();
-    error AtomicSolverV3___FailedToSolve();
-    error AtomicSolverV3___SolveMaxAssetsExceeded(uint256 actualAssets, uint256 maxAssets);
-    error AtomicSolverV3___P2PSolveMinSharesNotMet(uint256 actualShares, uint256 minShares);
-    error AtomicSolverV3___BoringVaultTellerMismatch(address vault, address teller);
-    error AtomicSolverV3___FeeOnTransferTokenNotSupported(uint256 received, uint256 expected);
-    error AtomicSolverV3___RedeemProceedsShortfall(uint256 proceeds, uint256 required);
-    error AtomicSolverV3___ZeroAddress();
+    error AtomicSolverV5___WrongInitiator();
+    error AtomicSolverV5___WrongQueue(address expected, address actual);
+    error AtomicSolverV5___AlreadyInSolveContext();
+    error AtomicSolverV5___NotInSolveContext();
+    error AtomicSolverV5___FailedToSolve();
+    error AtomicSolverV5___SolveMaxAssetsExceeded(uint256 actualAssets, uint256 maxAssets);
+    error AtomicSolverV5___P2PSolveMinSharesNotMet(uint256 actualShares, uint256 minShares);
+    error AtomicSolverV5___BoringVaultTellerMismatch(address vault, address teller);
+    error AtomicSolverV5___FeeOnTransferTokenNotSupported(uint256 received, uint256 expected);
+    error AtomicSolverV5___RedeemProceedsShortfall(uint256 proceeds, uint256 required);
+    error AtomicSolverV5___ZeroAddress();
 
     //============================== STATE ===============================
 
@@ -64,7 +64,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     //============================== MODIFIERS ===============================
 
     modifier inSolveContext(address queue) {
-        if (_inSolveContext != 0) revert AtomicSolverV3___AlreadyInSolveContext();
+        if (_inSolveContext != 0) revert AtomicSolverV5___AlreadyInSolveContext();
         _inSolveContext = 1;
         _expectedQueue = queue;
         _;
@@ -77,7 +77,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     constructor(address _owner, Authority _authority) Auth(_owner, _authority) {
         // Solmate's Auth does not validate _owner; address(0) here would permanently
         // brick setOwner / setAuthority since only the current owner can rotate them.
-        if (_owner == address(0)) revert AtomicSolverV3___ZeroAddress();
+        if (_owner == address(0)) revert AtomicSolverV5___ZeroAddress();
     }
 
     //============================== SOLVE FUNCTIONS ===============================
@@ -149,11 +149,11 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         external
         requiresAuth
     {
-        if (_inSolveContext != 1) revert AtomicSolverV3___NotInSolveContext();
+        if (_inSolveContext != 1) revert AtomicSolverV5___NotInSolveContext();
         // Assert the callback comes from the exact queue whose solve() we invoked,
         // not a sibling queue that may hold QUEUE_ROLE.
-        if (msg.sender != _expectedQueue) revert AtomicSolverV3___WrongQueue(_expectedQueue, msg.sender);
-        if (initiator != address(this)) revert AtomicSolverV3___WrongInitiator();
+        if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(_expectedQueue, msg.sender);
+        if (initiator != address(this)) revert AtomicSolverV5___WrongInitiator();
 
         address queue = msg.sender;
 
@@ -179,8 +179,8 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
      *      for dust, wrong-chain airdrops, or residue from an FoT/rebase edge case.
      */
     function rescue(ERC20 token, uint256 amount, address to) external requiresAuth {
-        if (to == address(0)) revert AtomicSolverV3___ZeroAddress();
-        if (_inSolveContext != 0) revert AtomicSolverV3___AlreadyInSolveContext();
+        if (to == address(0)) revert AtomicSolverV5___ZeroAddress();
+        if (_inSolveContext != 0) revert AtomicSolverV5___AlreadyInSolveContext();
         token.safeTransfer(to, amount);
         emit Rescued(address(token), to, amount);
     }
@@ -205,12 +205,12 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
 
         // Make sure solver is receiving the minimum amount of offer.
         if (offerReceived < minOfferReceived) {
-            revert AtomicSolverV3___P2PSolveMinSharesNotMet(offerReceived, minOfferReceived);
+            revert AtomicSolverV5___P2PSolveMinSharesNotMet(offerReceived, minOfferReceived);
         }
 
         // Make sure solvers `maxAssets` was not exceeded.
         if (wantApprovalAmount > maxAssets) {
-            revert AtomicSolverV3___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
+            revert AtomicSolverV5___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
         }
 
         // Transfer required want from solver, reconciling balance deltas to defend
@@ -220,7 +220,7 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         want.safeTransferFrom(solver, address(this), wantApprovalAmount);
         uint256 received = want.balanceOf(address(this)) - balBefore;
         if (received < wantApprovalAmount) {
-            revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
+            revert AtomicSolverV5___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
         }
 
         // Approve queue to spend wantApprovalAmount BEFORE the outbound offer transfer.
@@ -253,11 +253,11 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
             abi.decode(runData, (SolveType, address, uint256, uint256, TellerWithMultiAssetSupport));
 
         if (address(offer) != address(teller.vault())) {
-            revert AtomicSolverV3___BoringVaultTellerMismatch(address(offer), address(teller));
+            revert AtomicSolverV5___BoringVaultTellerMismatch(address(offer), address(teller));
         }
         // Make sure solvers `maxAssets` was not exceeded.
         if (wantApprovalAmount > maxAssets) {
-            revert AtomicSolverV3___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
+            revert AtomicSolverV5___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
         }
 
         // Redeem the shares that the queue just moved into this contract, sending the
@@ -273,14 +273,14 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         // FoT reconciliation: the teller computes assetsOut from the exchange rate but
         // vault.exit does the actual ERC20.transfer, so a FoT token can leave us short.
         if (received < wantApprovalAmount) {
-            revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
+            revert AtomicSolverV5___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
         }
 
         // Solver economics check: a sandwich on the teller exchange rate or a stale rate
         // can produce assetsOut < wantApprovalAmount, making the solve unprofitable. Fail
         // loud and early before any further state change.
         if (assetsOut < wantApprovalAmount) {
-            revert AtomicSolverV3___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
+            revert AtomicSolverV5___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
         }
 
         // Approve queue to spend wantApprovalAmount BEFORE the outbound profit transfer.

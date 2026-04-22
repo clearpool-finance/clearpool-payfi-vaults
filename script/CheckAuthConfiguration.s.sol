@@ -5,14 +5,14 @@ import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
-import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { BaseScript } from "./Base.s.sol";
 import { ConfigReader } from "./ConfigReader.s.sol";
 import "./../src/helper/Constants.sol";
 
 /// @notice Post-deploy invariant check script. Run after `deployAll.s.sol` on every chain.
 /// @dev Added in response to the 2026-04-20 incident: a `setPublicCapability(atomicSolver,
-///      finishSolve.selector, true)` misconfig let anyone drain approvers of AtomicSolverV3.
+///      finishSolve.selector, true)` misconfig let anyone drain approvers of AtomicSolverV5.
 ///      A single `require(!isCapabilityPublic(solver, finishSolve.selector))` here would have
 ///      caught it at deploy time. Extend the assertion list whenever new roles/capabilities
 ///      are added to ConfigureAtomicRoles.s.sol.
@@ -122,11 +122,11 @@ contract CheckAuthConfiguration is BaseScript {
             RolesAuthority(config.rolesAuthority).owner() == config.protocolAdmin,
             "CheckAuth: authority owner must equal protocolAdmin"
         );
-        // AtomicSolverV3 ownership: rescue() falls back to `owner()` if no role is wired.
+        // AtomicSolverV5 ownership: rescue() falls back to `owner()` if no role is wired.
         // Until setOwner(protocolAdmin) has been run, only the deployer EOA can rescue.
         // See RT-2 / F-2 in docs/ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md.
         require(
-            AtomicSolverV3(config.atomicSolver).owner() == config.protocolAdmin,
+            AtomicSolverV5(config.atomicSolver).owner() == config.protocolAdmin,
             "CheckAuth: atomicSolver owner must equal protocolAdmin"
         );
         // OPERATOR_ROLE must be able to call rescue() — otherwise stuck tokens
