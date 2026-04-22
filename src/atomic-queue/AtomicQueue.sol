@@ -79,6 +79,9 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     error AtomicQueue__NoValidRequests();
     error AtomicQueue__NoOutputExpected();
     error AtomicQueue__ZeroOutputAmount();
+    error AtomicQueue__PastDeadline(uint64 deadline, uint256 nowTs);
+    error AtomicQueue__InsufficientOfferBalance(uint256 balance, uint96 offerAmount);
+    error AtomicQueue__InsufficientOfferAllowance(uint256 allowance, uint96 offerAmount);
 
     //============================== EVENTS ===============================
 
@@ -155,12 +158,23 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
     /**
      * @notice Allows user to add/update their withdraw request.
+     * @dev Validates preconditions at submission time so griefers cannot plant requests that
+     *      will revert inside `solve`'s batch loop (see RT-3/F-2+F-3). Setting offerAmount=0
+     *      is still allowed — it is the canonical way to cancel a previously-active request.
      * @param offer the ERC20 token the user is offering in exchange for the want
      * @param want the ERC20 token the user wants in exchange for offer
      * @param deadline unix timestamp for when request is no longer valid
      * @param offerAmount the amount of offer asset to exchange
      */
     function updateAtomicRequest(ERC20 offer, ERC20 want, uint64 deadline, uint96 offerAmount) external nonReentrant {
+        if (offerAmount != 0) {
+            if (deadline <= block.timestamp) revert AtomicQueue__PastDeadline(deadline, block.timestamp);
+            uint256 bal = offer.balanceOf(msg.sender);
+            if (bal < offerAmount) revert AtomicQueue__InsufficientOfferBalance(bal, offerAmount);
+            uint256 allowance = offer.allowance(msg.sender, address(this));
+            if (allowance < offerAmount) revert AtomicQueue__InsufficientOfferAllowance(allowance, offerAmount);
+        }
+
         AtomicRequest storage request = userAtomicRequest[msg.sender][offer][want];
 
         request.deadline = deadline;
