@@ -249,23 +249,27 @@ After the patches on this branch:
 ## 4. Everything currently landed on `security/atomicsolverv3-remediation`
 
 ```
-fec065a harden(RT-1): reorder — set queue allowance before outbound solver transfers
-125abbb fix(RT-2/F-1): assert msg.sender == expectedQueue in finishSolve
-4cd0a0e fix(M-1, M-4): redirect redeem proceeds to self; pay solver profit directly
-fc4cfdd feat(I-1): add restricted rescue(token, amount, to)
-0e5ae44 chore(L-1): remove unused eETH / weETH constants
-9a97f84 fix(M-4): assert bulkWithdraw proceeds cover wantApprovalAmount
-b5a5ce3 fix(M-3): guard against zero-address owner in constructor
-bfdcff0 fix(M-1): reorder _redeemSolve to pull from solver before teller.bulkWithdraw
-a3b9ce2 fix(H-3): reconcile actual balance delta to reject fee-on-transfer tokens
-9b66de4 fix(H-2): zero-reset allowance before safeApprove for USDT compatibility
-cd81197 fix(H-1): add nonReentrant guard on p2pSolve and redeemSolve
-3b86fb7 fix(C-1/M-2/L-2): add in-contract solve-context lock
-3cee179 chore: forge fmt on auth config scripts and regression test
-a3c209e docs: add AtomicSolverV3 remediation plan
+<latest>  docs:                refresh remediation doc to reflect shipped state (this pass)
+6524195   docs:                add red-team report + contract surface inventory (this file)
+fec065a   harden(RT-1):        approve-before-outbound-transfer (redeem path)
+125abbb   fix(RT-2/F-1):       msg.sender == _expectedQueue in finishSolve + p2p approve reorder
+4cd0a0e   fix(M-1, M-4):       redirect bulkWithdraw proceeds to self; pay solver profit last
+fc4cfdd   feat(I-1):           restricted rescue(token, amount, to)
+0e5ae44   chore(L-1):          remove unused eETH / weETH constants
+9a97f84   fix(M-4):            assert bulkWithdraw proceeds >= wantApprovalAmount (superseded by 4cd0a0e)
+b5a5ce3   fix(M-3):            zero-address owner guard
+bfdcff0   fix(M-1):            CEI reorder in _redeemSolve (superseded by 4cd0a0e)
+a3b9ce2   fix(H-3):            FoT balance-delta reconcile + early revert
+9b66de4   fix(H-2):            USDT zero-reset before safeApprove
+cd81197   fix(H-1):            ReentrancyGuard + nonReentrant on outer paths
+3b86fb7   fix(C-1/M-2/L-2):    in-contract solve-context lock (+ wires up L-2 error)
+3cee179   chore:               forge fmt on auth scripts
+a3c209e   docs:                initial remediation plan
 ```
 
-**Tests:** 146 / 146 passing.
+**Tests:** 146 / 146 passing (`forge test`), including `test_rogueQueueWithQueueRoleStillBlocked` added for §2 / RT-2 F-1.
+
+Commits `bfdcff0` and `9a97f84` are retained for audit trail but their effective diffs are folded into `4cd0a0e` which supersedes the initial M-1/M-4 design. Reviewers should read `4cd0a0e` as the authoritative form.
 
 ---
 
