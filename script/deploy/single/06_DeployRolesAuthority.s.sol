@@ -182,6 +182,11 @@ contract DeployRolesAuthority is BaseScript {
         rolesAuthority.setRoleCapability(
             OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setUserRole.selector, true
         );
+        
+        // Allow OPERATOR_ROLE to set role capabilities
+        rolesAuthority.setRoleCapability(
+            OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setRoleCapability.selector, true
+        );
 
         // --- Set Public Capabilities ---
         rolesAuthority.setPublicCapability(config.teller, TellerWithMultiAssetSupport.deposit.selector, true);
@@ -220,6 +225,10 @@ contract DeployRolesAuthority is BaseScript {
         rolesAuthority.setUserRole(broadcaster, OPERATOR_ROLE, true);
         if (config.operator != address(0) && config.operator != broadcaster) {
             rolesAuthority.setUserRole(config.operator, OPERATOR_ROLE, true);
+            // Operator also needs UPDATE_EXCHANGE_RATE_ROLE (for exchange rate, whitelist updates)
+            rolesAuthority.setUserRole(config.operator, UPDATE_EXCHANGE_RATE_ROLE, true);
+            // Operator also needs PAUSER_ROLE (for pause/unpause)
+            rolesAuthority.setUserRole(config.operator, PAUSER_ROLE, true);
         }
 
         // Post Deploy Checks

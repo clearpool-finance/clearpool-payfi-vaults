@@ -1,0 +1,149 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "createdAt": 1776743478092,
+  "meta": {
+    "name": "AtomicSolverV3 finishSolve remediation",
+    "description": "Close public-capability on finishSolve for RLUSD and Ola vaults. Re-gate under QUEUE_ROLE (10). Remediates the 2026-04-20 incident and preempts re-exploitation across both vaults. Anvil-fork simulated; all 8 post-conditions hold.",
+    "txBuilderVersion": "1.17.0",
+    "createdFromSafeAddress": "0x1F2d11B9907ed373C488294849Ac3f9CE71DBe0c"
+  },
+  "transactions": [
+    {
+      "to": "0x670b8C56Da44A934A169DCb2dA750aB3dd4a6e13",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "functionSig",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "name": "setPublicCapability",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "target": "0x5B3A41826A28b6a8ed1c5F5d6052D9dB85428d59",
+        "functionSig": "0x2ddd62ce",
+        "enabled": "false"
+      }
+    },
+    {
+      "to": "0x670b8C56Da44A934A169DCb2dA750aB3dd4a6e13",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "uint8",
+            "name": "role",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "functionSig",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "name": "setRoleCapability",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "role": "10",
+        "target": "0x5B3A41826A28b6a8ed1c5F5d6052D9dB85428d59",
+        "functionSig": "0x2ddd62ce",
+        "enabled": "true"
+      }
+    },
+    {
+      "to": "0x9548bBe51cFb9bb137cdcCB830cB31b2Ad8F5F5B",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "functionSig",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "name": "setPublicCapability",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "target": "0xac993541a7f2152fd1b0d64FC460A8Aa0a3b8f38",
+        "functionSig": "0x2ddd62ce",
+        "enabled": "false"
+      }
+    },
+    {
+      "to": "0x9548bBe51cFb9bb137cdcCB830cB31b2Ad8F5F5B",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "uint8",
+            "name": "role",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "functionSig",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "name": "setRoleCapability",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "role": "10",
+        "target": "0xac993541a7f2152fd1b0d64FC460A8Aa0a3b8f38",
+        "functionSig": "0x2ddd62ce",
+        "enabled": "true"
+      }
+    }
+  ]
+}

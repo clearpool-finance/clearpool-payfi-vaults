@@ -22,6 +22,7 @@ import { DeployRolesAuthority } from "./single/06_DeployRolesAuthority.s.sol";
 import { DeployAtomicQueue } from "./DeployAtomicQueue.s.sol";
 import { DeployAtomicSolverV3 } from "./DeployAtomicSolverV3.s.sol";
 import { ConfigureAtomicRoles } from "../ConfigureAtomicRoles.s.sol";
+import { CheckAuthConfiguration } from "../CheckAuthConfiguration.s.sol";
 import { TellerSetup } from "./single/07_TellerSetup.s.sol";
 import { SetAuthorityAndTransferOwnerships } from "./single/08_SetAuthorityAndTransferOwnerships.s.sol";
 import { DeployClearpoolDecoder } from "./single/09_DeployAllDecoders.s.sol";
@@ -118,6 +119,11 @@ contract DeployAll is BaseScript {
         // Deploy Clearpool decoder (combines: AaveV3, CompoundV3, AtomicQueue, Teller, ERC20 Transfer)
         new DeployClearpoolDecoder().deployAllDecoders(config);
         console.log("Clearpool Decoder Deployed");
+
+        // Post-deploy auth invariants — reverts if anything is misconfigured.
+        // MUST be the final step so no subsequent call can relax a capability.
+        new CheckAuthConfiguration().deployWithConfig(config);
+        console.log("Auth invariants verified");
 
         mainConfig = config;
     }

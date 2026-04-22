@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "chainId": "14",
+  "createdAt": 1776743478092,
+  "meta": {
+    "name": "AtomicSolverV3 finishSolve remediation (Flare HT X-Pool)",
+    "description": "Close public-capability on finishSolve for the Flare HT yUSDX vault. Re-gate under QUEUE_ROLE (10). Same vulnerability class as the 2026-04-20 Ethereum incident. Fork-simulated; post-conditions verified.",
+    "txBuilderVersion": "1.17.0",
+    "createdFromSafeAddress": "0x8095862139a3f623a64cec84eb8cE82359317419"
+  },
+  "transactions": [
+    {
+      "to": "0xE3d4a420cA5f43aDEeb55D876dE53E73dd471bE1",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          { "internalType": "address", "name": "target", "type": "address" },
+          { "internalType": "bytes4", "name": "functionSig", "type": "bytes4" },
+          { "internalType": "bool", "name": "enabled", "type": "bool" }
+        ],
+        "name": "setPublicCapability",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "target": "0xCB0cd11dB50eb3cE4572E6134E524A9E17BeaBf5",
+        "functionSig": "0x2ddd62ce",
+        "enabled": "false"
+      }
+    },
+    {
+      "to": "0xE3d4a420cA5f43aDEeb55D876dE53E73dd471bE1",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          { "internalType": "uint8", "name": "role", "type": "uint8" },
+          { "internalType": "address", "name": "target", "type": "address" },
+          { "internalType": "bytes4", "name": "functionSig", "type": "bytes4" },
+          { "internalType": "bool", "name": "enabled", "type": "bool" }
+        ],
+        "name": "setRoleCapability",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "role": "10",
+        "target": "0xCB0cd11dB50eb3cE4572E6134E524A9E17BeaBf5",
+        "functionSig": "0x2ddd62ce",
+        "enabled": "true"
+      }
+    }
+  ]
+}
