@@ -15,10 +15,6 @@ import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAsset
 contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
-    // ========================================= CONSTANTS =========================================
-
-    ERC20 internal constant eETH = ERC20(0x35fA164735182de50811E8e2E824cFb9B6118ac2);
-    ERC20 internal constant weETH = ERC20(0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee);
 
     // ========================================= ENUMS =========================================
 
