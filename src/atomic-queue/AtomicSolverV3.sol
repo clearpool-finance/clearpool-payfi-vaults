@@ -283,12 +283,15 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
             revert AtomicSolverV3___RedeemProceedsShortfall(assetsOut, wantApprovalAmount);
         }
 
+        // Approve queue to spend wantApprovalAmount BEFORE the outbound profit transfer.
+        // If `want` has an ERC777-style transfer hook on the profit payout, the queue
+        // allowance is already set when the callback fires; defense-in-depth against
+        // any future entry point that might read/write mid-callback.
+        want.safeApprove(queue, 0);
+        want.safeApprove(queue, wantApprovalAmount);
+
         // Pay the solver their profit margin (proceeds in excess of the queue's take).
         uint256 solverProfit = received - wantApprovalAmount;
         if (solverProfit != 0) want.safeTransfer(solver, solverProfit);
-
-        // Approve queue to spend wantApprovalAmount. Zero-reset for USDT-style tokens.
-        want.safeApprove(queue, 0);
-        want.safeApprove(queue, wantApprovalAmount);
     }
 }
