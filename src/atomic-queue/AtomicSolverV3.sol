@@ -41,6 +41,8 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
     error AtomicSolverV3___SolveMaxAssetsExceeded(uint256 actualAssets, uint256 maxAssets);
     error AtomicSolverV3___P2PSolveMinSharesNotMet(uint256 actualShares, uint256 minShares);
     error AtomicSolverV3___BoringVaultTellerMismatch(address vault, address teller);
+    error AtomicSolverV3___FeeOnTransferTokenNotSupported(uint256 received, uint256 expected);
+    error AtomicSolverV3___RedeemProceedsShortfall(uint256 proceeds, uint256 required);
 
     //============================== STATE ===============================
 
@@ -177,16 +179,22 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
             revert AtomicSolverV3___SolveMaxAssetsExceeded(wantApprovalAmount, maxAssets);
         }
 
-        // Transfer required want from solver.
+        // Transfer required want from solver, reconciling balance deltas to defend
+        // against fee-on-transfer tokens whose transferFrom debits a fee and leaves
+        // the contract with less than wantApprovalAmount.
+        uint256 balBefore = want.balanceOf(address(this));
         want.safeTransferFrom(solver, address(this), wantApprovalAmount);
+        uint256 received = want.balanceOf(address(this)) - balBefore;
+        if (received < wantApprovalAmount) {
+            revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
+        }
 
         // Transfer offer to solver.
         offer.safeTransfer(solver, offerReceived);
 
         // Approve queue to spend wantApprovalAmount.
         // Zero-reset first for USDT-style tokens whose approve() reverts when
-        // allowance > 0 && amount > 0. Residual allowance can occur if a prior
-        // solve partially filled or reverted after approving.
+        // allowance > 0 && amount > 0.
         want.safeApprove(queue, 0);
         want.safeApprove(queue, wantApprovalAmount);
     }
@@ -218,8 +226,13 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         // Redeem the shares, sending assets to solver.
         teller.bulkWithdraw(want, offerReceived, minimumAssetsOut, solver);
 
-        // Transfer required assets from solver.
+        // Transfer required assets from solver with fee-on-transfer reconciliation.
+        uint256 balBefore = want.balanceOf(address(this));
         want.safeTransferFrom(solver, address(this), wantApprovalAmount);
+        uint256 received = want.balanceOf(address(this)) - balBefore;
+        if (received < wantApprovalAmount) {
+            revert AtomicSolverV3___FeeOnTransferTokenNotSupported(received, wantApprovalAmount);
+        }
 
         // Approve queue to spend wantApprovalAmount. Zero-reset for USDT-style tokens.
         want.safeApprove(queue, 0);
