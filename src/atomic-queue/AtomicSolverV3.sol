@@ -184,6 +184,10 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         offer.safeTransfer(solver, offerReceived);
 
         // Approve queue to spend wantApprovalAmount.
+        // Zero-reset first for USDT-style tokens whose approve() reverts when
+        // allowance > 0 && amount > 0. Residual allowance can occur if a prior
+        // solve partially filled or reverted after approving.
+        want.safeApprove(queue, 0);
         want.safeApprove(queue, wantApprovalAmount);
     }
 
@@ -217,7 +221,8 @@ contract AtomicSolverV3 is IAtomicSolver, Auth, ReentrancyGuard {
         // Transfer required assets from solver.
         want.safeTransferFrom(solver, address(this), wantApprovalAmount);
 
-        // Approve queue to spend wantApprovalAmount.
+        // Approve queue to spend wantApprovalAmount. Zero-reset for USDT-style tokens.
+        want.safeApprove(queue, 0);
         want.safeApprove(queue, wantApprovalAmount);
     }
 }
