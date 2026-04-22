@@ -10,10 +10,12 @@
 ## 0. TL;DR
 
 - **No new fund-draining exploit found** on top of the hack-report remediation.
-- **One genuine HIGH-severity finding** (RT-2 / F-1) — a rogue-queue cascade reachable via compromised `OPERATOR_ROLE` — was **implemented and pushed** in commit `125abbb` and verified with a regression test (`test_rogueQueueWithQueueRoleStillBlocked`).
+- **One genuine HIGH-severity finding** (RT-2 / F-1) — a rogue-queue cascade reachable via compromised `OPERATOR_ROLE` — **fixed in-contract** (`125abbb`) with a `_expectedQueue` assertion AND **fixed at the authority layer** (`96fc2af`) by removing `setRoleCapability` from `OPERATOR_ROLE`. Regression: `test_rogueQueueWithQueueRoleStillBlocked`.
 - **One defense-in-depth hardening** (RT-1 / approval-before-transfer ordering) implemented in `fec065a`.
-- **Three medium-severity queue-side griefing findings** flagged but **not fixed in this branch** — they require changes to `AtomicQueue.sol` and a keeper-side API bump; tracked as follow-up PRs below.
-- **Surface survey** found the same C-1 vulnerability shape (`finishSolve` drain) in `AtomicSolverV2.sol` and a more severe arbitrary-call pattern in the original `AtomicSolver.sol`. Neither is deployed per a full `script/` grep, but both are still compiled and the bytecode could be resurrected by mistake. Recommend deletion — not done in this branch.
+- **Operational finding RT-2/F-2** (`rescue()` only callable by deployer EOA) fixed in `96fc2af`: `OPERATOR_ROLE` now holds `rescue.selector` and `CheckAuthConfiguration` asserts ownership is on `protocolAdmin`.
+- **Dormant legacy V2 solver deleted** (`36fabe3`). V1 retained only because `EtherFiLiquid1Migration.t.sol` still imports it.
+- **Queue-side griefing finding RT-3/F-2+F-3** partially fixed at submission time (`f3e2fd4`): `updateAtomicRequest` now rejects past deadlines, insufficient balance, insufficient allowance. The full fix (batch-failure isolation I-2) requires changing `AtomicQueue.solve` semantics — keeper-breaking — and remains a follow-up.
+- **RT-3/F-1 rate-sandwich griefing** remains a follow-up (`minSolverProfit` param) because it changes the solver selector and needs keeper coordination.
 
 ---
 
@@ -74,17 +76,13 @@ function finishSolve(...) external requiresAuth {
 ---
 
 ### [RT-2 / F-2] — HIGH (operational) — `rescue()` reachable only by owner, no role
-**Status:** ⚠️ Open — tracked for ops.
+**Status:** ✅ Fixed in commit `96fc2af`.
 
-**Finding.** The new `rescue(ERC20, uint256, address)` in commit `fc4cfdd` is gated by `requiresAuth`. Grep of every deploy script (`ConfigureAtomicRoles`, `06_DeployRolesAuthority`, `DeployPortLayerZero`, `DeployPortProofOfConcept`, `DeployNucleusCrossChain`) found **zero** `setRoleCapability(..., atomicSolver, rescue.selector, ...)` calls. The only address that satisfies `requiresAuth` without a role is the `owner()` — set to `broadcaster` (the deployer EOA) until an explicit `setOwner` is run.
+**Finding.** The new `rescue(ERC20, uint256, address)` in commit `fc4cfdd` is gated by `requiresAuth`. Before this fix, no deploy script granted `rescue.selector` to any role, so only `AtomicSolverV3.owner()` could call it — defaulting to the deployer EOA until `setOwner` ran.
 
-**Risk.** If the deployer EOA is rotated or lost before ownership is transferred, `rescue` becomes permanently unreachable and stranded tokens are stuck. `CheckAuthConfiguration.s.sol` does not currently assert `AtomicSolverV3.owner() == protocolAdmin`.
-
-**Fix.**
-- Short term: add `require(AtomicSolverV3(atomicSolver).owner() == protocolAdmin, ...)` to `CheckAuthConfiguration`.
-- Long term: introduce a `RESCUER_ROLE` (or reuse `OPERATOR_ROLE`) and grant it `rescue.selector` in `ConfigureAtomicRoles`. Multisig-friendly.
-
-Not implemented in this branch — requires Ops sign-off on role assignment.
+**Shipped fix (`96fc2af`).**
+- `ConfigureAtomicRoles.s.sol`: `setRoleCapability(OPERATOR_ROLE, atomicSolver, bytes4(keccak256("rescue(address,uint256,address)")), true)`.
+- `CheckAuthConfiguration.s.sol`: asserts `AtomicSolverV3(atomicSolver).owner() == protocolAdmin` AND `canCall(operator, atomicSolver, rescue.selector) == true`. Any future deploy that skips the ownership transfer or role wiring now fails the check instead of shipping.
 
 ---
 
@@ -97,14 +95,14 @@ Not implemented in this branch — requires Ops sign-off on role assignment.
 
 ---
 
-### [RT-2 / F-4] — LOW — `AtomicSolverV2.sol` + `AtomicSolver.sol` dormant but compiled
-**Status:** ⚠️ Open — recommend delete.
+### [RT-2 / F-4] — LOW — `AtomicSolverV2.sol` dormant but compiled
+**Status:** ✅ V2 deleted in commit `36fabe3`. V1 retained — see note.
 
-**Finding.** The surface survey confirms `AtomicSolverV2.sol` has the **identical** C-1 vulnerability shape as pre-fix V3. `AtomicSolver.sol` (V1) has a *more severe* pattern — it executes arbitrary `target.functionCallWithValue(data, value)` with caller-supplied `targets`/`ammo` arrays, gated only by a custom `approvedToCallFinishSolve` mapping (not the Auth framework).
+**Finding.** `AtomicSolverV2.sol` had the **identical** C-1 vulnerability shape as pre-fix V3. `AtomicSolver.sol` (V1) has a *more severe* pattern — it executes arbitrary `target.functionCallWithValue(data, value)` with caller-supplied `targets`/`ammo` arrays, gated only by a custom `approvedToCallFinishSolve` mapping (not the Auth framework).
 
-Full `grep -r "AtomicSolverV2\|AtomicSolver\b" script/` shows **zero** deploy references — neither contract is wired into any Authority in any deployment config. But both are compilable, sit next to the deployed V3, and have identical selectors. A future developer resurrecting one of them (or accidentally importing the wrong file) re-opens the bug class.
+**Shipped.** `AtomicSolverV2.sol` deleted — zero references anywhere in the repo (verified by `grep -r AtomicSolverV2 script/ test/`).
 
-**Fix.** Delete both files. Git history is sufficient for archaeology. Not done here — recommend a dedicated cleanup PR.
+**V1 retained for now.** `test/EtherFiLiquid1Migration.t.sol:14` still imports `AtomicSolver`. The test validates a legacy migration flow; deleting V1 would require also deleting or rewriting that test. Tracked for cleanup when the migration path is retired.
 
 ---
 
@@ -133,28 +131,25 @@ Pass through `runData`, and inside `_redeemSolve` revert if `solverProfit < minS
 ---
 
 ### [RT-3 / F-2, F-3] — MEDIUM — Batch DoS via public `updateAtomicRequest`
-**Status:** ⚠️ Open — queue-side fix.
+**Status:** ⚠️ **Partially fixed** in commit `f3e2fd4`. Full fix (I-2) remains a follow-up.
 
-**Finding.** `AtomicQueue.updateAtomicRequest` (line 163) is publicly callable by design and has no validation:
-- No `offerAmount >= minAmount` check (allows dust).
-- No `deadline > block.timestamp` check (allows past-dated grief requests).
-- No `offer.balanceOf(msg.sender) >= offerAmount` check (allows unfundable requests).
-- No `offer.allowance(msg.sender, queue) >= offerAmount` check.
+**Finding.** `AtomicQueue.updateAtomicRequest` (line 163) is publicly callable by design and previously had no validation. Combined with the queue's all-or-nothing batch semantics (I-2), any bogus request could grief legitimate solves.
 
-Combined with the hack-report finding I-2 (AtomicQueue hard-reverts on the first failing user, no per-user isolation), an attacker can DoS legitimate solves:
-- Drop 10,000 1-wei dust requests → solvers must filter off-chain, gas explodes on `viewSolveMetaData`.
-- Drop a request with `deadline = block.timestamp - 1` → first `_prepareSolve` iteration reverts; solver wastes a tx.
-- Drop a request with `offerAmount > balanceOf(self)` → `safeTransferFrom` in `_prepareSolve` reverts.
-
-**Fix (recommended, not applied).** In `AtomicQueue.updateAtomicRequest`, add three one-liners:
+**Shipped (`f3e2fd4`) — submission-time validation.**
 
 ```solidity
-require(deadline > block.timestamp, "past deadline");
-require(offer.balanceOf(msg.sender) >= offerAmount, "insufficient balance");
-require(offer.allowance(msg.sender, address(this)) >= offerAmount, "insufficient allowance");
+if (offerAmount != 0) {
+    if (deadline <= block.timestamp) revert AtomicQueue__PastDeadline(deadline, block.timestamp);
+    uint256 bal = offer.balanceOf(msg.sender);
+    if (bal < offerAmount) revert AtomicQueue__InsufficientOfferBalance(bal, offerAmount);
+    uint256 allowance = offer.allowance(msg.sender, address(this));
+    if (allowance < offerAmount) revert AtomicQueue__InsufficientOfferAllowance(allowance, offerAmount);
+}
 ```
 
-And in `AtomicQueue.solve`, implement I-2's skip-and-emit semantics (or at least a max-batch-size cap, e.g., 100 users). Not applied here — outside the scope of the solver-focused branch.
+`offerAmount == 0` preserved as the canonical cancel path (no validation on cancel).
+
+**Still open.** State can still change between `updateAtomicRequest` and `solve` (user transfers out, revokes allowance, deadline passes). The full fix requires I-2 skip-and-emit in `solve` itself — a keeper-breaking change deferred to a separate PR.
 
 ---
 
@@ -249,7 +244,11 @@ After the patches on this branch:
 ## 4. Everything currently landed on `security/atomicsolverv3-remediation`
 
 ```
-<latest>  docs:                refresh remediation doc to reflect shipped state (this pass)
+f3e2fd4   fix(RT-3/F-2+F-3):   validate preconditions in updateAtomicRequest
+96fc2af   fix(RT-2/F-1,F-2):   tighten OPERATOR authority + wire rescue role + check assertions
+36fabe3   chore(RT-2/F-4):     delete dormant AtomicSolverV2
+05b8f6c   docs:                collapse validation table to single status column
+4715a87   docs:                refresh remediation doc to reflect shipped state
 6524195   docs:                add red-team report + contract surface inventory (this file)
 fec065a   harden(RT-1):        approve-before-outbound-transfer (redeem path)
 125abbb   fix(RT-2/F-1):       msg.sender == _expectedQueue in finishSolve + p2p approve reorder
@@ -273,22 +272,27 @@ Commits `bfdcff0` and `9a97f84` are retained for audit trail but their effective
 
 ---
 
-## 5. Follow-up PRs (not in this branch)
+## 5. Follow-up status
 
-Priority-ordered. Each is a self-contained change in a separate repo surface.
+**Folded into this branch** (low-risk defensive items originally scoped as follow-up PRs):
 
-| # | Scope | Size | Blocker for merge? |
-|---|---|---|---|
-| 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol` (RT-2 F-1 off-chain arm). | 4 lines | **Yes** — pair with this branch before redeploy |
-| 2 | Add `CheckAuthConfiguration` assertion `AtomicSolverV3(atomicSolver).owner() == protocolAdmin` (RT-2 F-2). | 4 lines | Yes |
-| 3 | Add `setRoleCapability(OPERATOR_ROLE, atomicSolver, rescue.selector, true)` in `ConfigureAtomicRoles` so operations can actually call `rescue` (RT-2 F-2). | 3 lines | Recommended |
-| 4 | Delete `AtomicSolverV2.sol` + `AtomicSolver.sol` (RT-2 F-4). | file removals | Recommended |
-| 5 | Add `minSolverProfit` param to `redeemSolve` (RT-3 F-1). | ~10 lines + keeper API bump | Post-merge |
-| 6 | Validate `updateAtomicRequest` (deadline, balance, allowance) in `AtomicQueue` (RT-3 F-2/F-3). | 3 lines | Post-merge |
-| 7 | Implement I-2 (skip-and-emit) in `AtomicQueue.solve` (RT-3 F-2). | ~15 lines + keeper semantics doc | Post-merge |
-| 8 | Extract deploy-role wiring into a library used by every deploy script + regression test (RT-2 F-3). | medium refactor | Post-merge |
-| 9 | Upgrade to Solidity 0.8.24 + `evm_version = cancun`, convert `_inSolveContext` + `_expectedQueue` to transient storage. | pragma bump + 2 lines | Post-merge, gas-only |
-| 10 | Independent audit (Spearbit, Hexens, Cyfrin) before unpausing large vaults. | ops | Recommended pre-prod |
+| # | Scope | Landed in |
+|---|---|---|
+| 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` (RT-2 F-1 off-chain arm). | `96fc2af` |
+| 2 | `CheckAuthConfiguration`: `AtomicSolverV3.owner() == protocolAdmin`, operator can `rescue`, operator cannot `setRoleCapability`. | `96fc2af` |
+| 3 | Wire `OPERATOR_ROLE` to `rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
+| 4 | Delete `AtomicSolverV2.sol`. V1 retained (legacy migration test). | `36fabe3` |
+| 6 | Validate `updateAtomicRequest` (deadline, balance, allowance). | `f3e2fd4` |
+
+**Deliberately kept out** (each merits its own PR):
+
+| # | Scope | Reason kept out |
+|---|---|---|
+| 5 | `minSolverProfit` param on `redeemSolve` (RT-3 F-1). | Changes solver selector → breaks keeper bots. Needs rollout plan. |
+| 7 | I-2 skip-and-emit in `AtomicQueue.solve`. | Changes batch semantics from all-or-nothing to partial-fill. Keeper-breaking. |
+| 8 | Extract deploy-role wiring into shared library + drive regressions off it. | Medium refactor of 4+ deploy scripts. Belongs in cleanup PR. |
+| 9 | Solidity 0.8.24 + cancun, transient storage for `_inSolveContext` / `_expectedQueue`. | Repo-wide pragma bump. Gas-only. |
+| 10 | Independent audit (Spearbit / Hexens / Cyfrin). | Not a code change. **Recommended pre-prod.** |
 
 ---
 

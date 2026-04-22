@@ -299,22 +299,27 @@ Commits `bfdcff0` / `9a97f84` are retained for audit trail; their effective diff
 
 ---
 
-## 5. Follow-up PRs (deliberately NOT in this branch)
+## 5. Follow-up work
 
-Priority-ordered. Each is a self-contained change in a separate surface.
+**Folded into this branch** (originally scoped as separate PRs but low-risk and defensive):
 
-| # | Scope | Urgency |
+| # | Scope | Landed in |
 |---|---|---|
-| 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol`. | **Blocker before redeploy** — closes §3.12 at the Authority layer as well. |
-| 2 | Add `CheckAuthConfiguration` assertion: `AtomicSolverV3(atomicSolver).owner() == protocolAdmin`. | Blocker before redeploy — avoids the ownership-trap described in §3.10 operational gotcha. |
-| 3 | Wire a role (`OPERATOR_ROLE` or new `RESCUER_ROLE`) to `rescue.selector` in `ConfigureAtomicRoles`. | Blocker — otherwise only the deployer EOA can ever call `rescue`. |
-| 4 | Delete `src/atomic-queue/AtomicSolverV2.sol` and `src/atomic-queue/AtomicSolver.sol`. | Recommended — both are dormant (zero deploy references) but carry the same / worse vuln shape. See red-team doc RT-2/F-4. |
-| 5 | Add `minSolverProfit` param to `redeemSolve`. | Post-merge — closes the rate-sandwich griefing surface (red-team RT-3/F-1). Keeper API change. |
-| 6 | Validate `updateAtomicRequest` in `AtomicQueue` (deadline / balance / allowance preconditions). | Post-merge — closes dust griefing (red-team RT-3/F-2+F-3). |
-| 7 | Implement I-2 (skip-and-emit) in `AtomicQueue.solve`. | Post-merge — keeper semantics change. |
-| 8 | Extract deploy-role wiring into a shared library used by every deploy script + regression test. | Post-merge — closes regression-coverage gap (red-team RT-2/F-3). |
-| 9 | Upgrade to Solidity 0.8.24 + `evm_version = cancun`; convert `_inSolveContext` + `_expectedQueue` to transient storage (EIP-1153). | Post-merge — gas only, ~2k gas saved per solve. See §3.1. |
-| 10 | Commission an independent audit (Spearbit / Hexens / Cyfrin) before unpausing production vaults. | **Recommended pre-prod** — per the hack report's own recommendation #6. |
+| 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol`. | `96fc2af` |
+| 2 | Add `CheckAuthConfiguration` assertions: solver `owner() == protocolAdmin`, operator can call `rescue`, operator CANNOT `setRoleCapability`. | `96fc2af` |
+| 3 | Wire `OPERATOR_ROLE` to `AtomicSolverV3.rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
+| 4 | Delete `src/atomic-queue/AtomicSolverV2.sol` (zero deploy references). `AtomicSolver.sol` (V1) kept because `test/EtherFiLiquid1Migration.t.sol` still imports it for legacy-path testing; track V1 deletion with that test's eventual retirement. | `36fabe3` |
+| 6 | Validate `updateAtomicRequest` preconditions (deadline, balance, allowance) in `AtomicQueue`. | `f3e2fd4` |
+
+**Deliberately kept out** (breaking-API or cross-cutting; each merits its own PR):
+
+| # | Scope | Why not here |
+|---|---|---|
+| 5 | Add `minSolverProfit` param to `redeemSolve`. | Changes the solver selector — breaks every keeper bot. Needs ops coordination + keeper rollout plan. |
+| 7 | Implement I-2 (skip-and-emit) in `AtomicQueue.solve`. | Changes batch semantics from all-or-nothing to partial-fill — keepers' retry logic depends on the current semantics. Needs a migration plan or a separate `solveWithSkip` entry point. |
+| 8 | Extract deploy-role wiring into a shared library used by every deploy script + regression test. | Cross-cutting refactor of 4+ deploy scripts. Higher bug risk than benefit in a security PR; belongs in a follow-up cleanup. |
+| 9 | Upgrade to Solidity 0.8.24 + `evm_version = cancun`; convert `_inSolveContext` + `_expectedQueue` to transient storage (EIP-1153). | Repo-wide pragma bump affecting every contract. Gas-only win (~2k per solve). |
+| 10 | Commission an independent audit (Spearbit / Hexens / Cyfrin) before unpausing production vaults. | Not a code change. **Still recommended pre-prod** — per the hack report's own recommendation #6. |
 
 ---
 
