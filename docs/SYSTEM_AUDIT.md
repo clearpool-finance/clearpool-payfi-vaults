@@ -287,17 +287,30 @@ Third-pass work added three parallel reviews:
 | T-2 refinement | HIGH | Original T-2 fix checked `_to` only; canonical AtomicSolver flow has `_to = solver contract`, so end user was not access-gated. Now both `msg.sender` + `_to` checked. | R3 validation agent | `94592cb` |
 | A-3 refinement | MEDIUM | Original A-3 fix could be bypassed via pegged→non-pegged transition skipping deviation check. Now bypass closed. | R3 validation agent | `94592cb` |
 
-### New findings from Round 3 (NOT shipped)
+### New findings from Round 3
+
+**Shipped on branch:**
+
+| ID | Severity | Finding | Commit |
+|---|---|---|---|
+| N-1 | HIGH | `depositAndBridge` deadlock with `shareLockPeriod > 0` | `94592cb` |
+| N-2 (LZ) | MEDIUM | LZ `_lzReceive` called `accountant.checkpoint()` → pause black-hole | `94592cb` |
+| N-2 (HL mirror) | HIGH | `_beforeReceive` reverted on deposit-pause for all bridges → permanent loss. Fixed by splitting into `isReceivePaused` with separate `pauseReceive`/`unpauseReceive` + `ReceivePaused` error. | `ba14f45` |
+| N-4 | MEDIUM | Solmate fake-shares: `BoringVault.enter` now reverts `BoringVault__AssetNotContract` if `asset.code.length == 0`. | `ba14f45` |
+| N-5 | LOW/MED | Verified already in place at `ManagerWithMerkleVerification.sol:214` — `msg.sender != address(balancerVault)` revert. | verified |
+| N-6 | LOW | `MultiChainTellerBase.addChain` / `allowMessagesFromChain` now require `targetTeller != address(0)` | `94592cb` |
+| T-2 refine | HIGH | `bulkWithdraw` now gates both `msg.sender` AND `_to` | `94592cb` |
+| A-3 refine | MEDIUM | Deviation check extended across pegged↔non-pegged transitions | `94592cb` |
+| R-4 (pragmatic) | HIGH | `CheckAuthConfiguration` now asserts `owner() == protocolAdmin` for every core contract — catches typo'd `transferOwnership` at deploy check. | `ba14f45` |
+
+**Still deferred (design-track, per team decision):**
 
 | ID | Severity | Finding | Disposition |
 |---|---|---|---|
-| **R-1** | **CRITICAL** | **Permanent fund-lockup possible** if accountant gets auto-paused (A-1) with bounds too tight to unpause cleanly AND all chains share the same pause → no user-initiated exit exists. Needs an `emergencyBulkWithdraw` using a governance-frozen rate snapshot. | Design-track — BLOCKS MAINNET PRODUCTION until landed |
-| N-2 (Hyperlane mirror) | HIGH | Same class as LZ N-2 but on Hyperlane: `handle` calls `_beforeReceive` which reverts on pause → permanent loss if destination paused during relay. Different fix: remove `_beforeReceive` from receive handlers globally, or queue inbound while paused. | Design-track |
-| R-4 | HIGH | Single-step `transferOwnership` typo bricks contracts | Ship Ownable2Step wrapper or post-deploy owner invariants — tracked |
+| **R-1** | **CRITICAL** | **Permanent fund-lockup possible** if accountant gets auto-paused with bounds too tight to unpause cleanly AND all bridge destinations share the same stuck state → no user-initiated exit exists. Needs an `emergencyBulkWithdraw` using a governance-frozen rate snapshot. | Design-track — BLOCKS MAINNET PRODUCTION until landed |
+| R-4 (full) | HIGH | Full Auth2Step mixin refactor (replaces solmate's single-step `transferOwnership`). | Design-track — pragmatic deploy-check assertion shipped in `ba14f45` closes the typo-brick risk; mixin refactor is proper long-term fix. |
 | R-5 | MEDIUM | A-3's 5% deviation cap traps admin if provider legitimately drifted > 5%. Need a `forceReplaceRateProvider` with timelock escape. | Follow-up |
-| N-3 | MEDIUM→HIGH | 0xMacro A-4 M-4: rate-calc decimals for pegged quote assets — spot-check needed on `getRateInQuote` + `claimFees` | Verification task |
-| N-4 | MEDIUM | Solmate `SafeTransferLib` fake-shares: `addAsset` + `setRateProviderData` with an `address(0)` asset = silent phantom mint. Add `asset.code.length > 0` check in `BoringVault.enter`. | Follow-up |
-| N-5 | LOW/MED | Flash-loan caller check: make `msg.sender == balancerVault` explicit in `receiveFlashLoan` (orthogonal to V-3) | Follow-up |
+| N-3 | MEDIUM→HIGH | 0xMacro A-4 M-4: rate-calc decimals for pegged quote assets — spot-check on `getRateInQuote` + `claimFees` | Verification task |
 | N-7 | LOW | Hyperlane `_quote` payload fee underestimation (Pashov HL L-3) | Spot-check |
 | N-8 | LOW/MED | `AtomicQueue.solve` `assetsForWant` overestimation vs accumulated per-user (Pashov HL L-5) | Spot-check |
 
