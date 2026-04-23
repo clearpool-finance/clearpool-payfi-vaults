@@ -4,7 +4,9 @@
 **Methodology:** two rounds of parallel adversarial agents. Round 1 = six breadth passes (one per subsystem). Round 2 = two depth passes — cross-subsystem attack composition and red-team against the Round-1 fix proposals.
 **Scope:** every `.sol` under `src/` plus every deploy script under `script/`. AtomicSolverV5 was audited separately (see `ATOMIC_SOLVER_V5_REMEDIATION.md` + `ATOMIC_SOLVER_V5_CLEARPOOL_REVIEW.md`) and is excluded from this report's *findings* count, though it appears in the attack-chain analyses because it's the redemption leg most chains terminate through.
 
-**Status update (post-fix pass):** the majority of findings have now been implemented on this branch — see §6.5 for the per-finding ship status and `git log` for the exact commits. The remaining items are the three design-track fixes (T-1 cross-chain receive quarantine, I-2 solve-time skip-and-emit, A-5 push-model lending) plus the ops-track audit. All 147 tests pass with every fix applied.
+**Status update (post-fix pass):** the majority of findings have now been implemented on this branch — see §6.5 for the per-finding ship status and `git log` for the exact commits. Round 3 added 5 more shipped fixes (N-1, N-2, N-6, T-2 refinement, A-3 refinement — see §6.3) and surfaced **one CRITICAL deferred design item (R-1: emergency exit) that blocks a production mainnet redeploy**. Everything else remaining is an engineering-track follow-up or ops/audit item.
+
+All 147 tests pass with every fix applied.
 
 ---
 
@@ -261,6 +263,45 @@ These motivate role separation: holders of any key in column A should be indepen
 **Ops track:**
 - Commission an independent external audit (Spearbit / Hexens / Cyfrin) on the revised branch before unpausing production vaults. The AI audit is strong triage, not a sign-off.
 - Decoder audit pass (237 functions in `src/base/DecodersAndSanitizers/`) — explicitly out of scope here.
+
+---
+
+## 6.3 Round 3 audit additions
+
+Third-pass work added three parallel reviews:
+- **External audit cross-reference** against Spearbit, 0xMacro A-4/A-5, Pashov (Ion/LZ), Pashov (Hyperlane), plus upstream Veda-Labs audit folder (Sigma Prime, 0xMacro-2 — both target `AccountantWithYieldStreaming` which this fork doesn't have).
+- **End-to-end flow walkthrough** with a money-stuck lens (happy + 3+ edges per flow).
+- **Adversarial re-validation** of every fix already landed on this branch.
+
+**Policy divergence from upstream Veda worth calling out in operator docs**: our fork pauses `bulkDeposit` (T-7). Veda intentionally does not. This is a conscious hardening choice that affects AtomicQueue keepers — they need unpause to drain.
+
+**Fork-vs-upstream comparison**: our fork is strictly tighter than upstream on 6 items (T-7, M-1, Q-3, A-4, A-1, delay-in-seconds). Equivalent on the rest that apply. 12 of our shipped fixes are net-new (not in any public audit): T-2, T-4, T-6, T-8, V-3, A-1, A-4, A-7, M-3, Q-1, A-3, D-* deploy-script cleanup.
+
+### New findings from Round 3 (shipped on branch)
+
+| ID | Severity | Finding | Source | Commit |
+|---|---|---|---|---|
+| N-1 | HIGH | `depositAndBridge` reverts when `shareLockPeriod > 0` | R3 flow agent + Pashov HL M-02 | `94592cb` |
+| N-2 | MEDIUM | LZ `_lzReceive` calls `accountant.checkpoint()` → destination pause = permanent burn loss | R3 flow agent (R-3) + Pashov HL M-01 (parallel class) | `94592cb` |
+| N-6 | LOW | `MultiChainTellerBase.addChain` / `allowMessagesFromChain` didn't enforce `targetTeller != address(0)` | Pashov HL L-2 | `94592cb` |
+| T-2 refinement | HIGH | Original T-2 fix checked `_to` only; canonical AtomicSolver flow has `_to = solver contract`, so end user was not access-gated. Now both `msg.sender` + `_to` checked. | R3 validation agent | `94592cb` |
+| A-3 refinement | MEDIUM | Original A-3 fix could be bypassed via pegged→non-pegged transition skipping deviation check. Now bypass closed. | R3 validation agent | `94592cb` |
+
+### New findings from Round 3 (NOT shipped)
+
+| ID | Severity | Finding | Disposition |
+|---|---|---|---|
+| **R-1** | **CRITICAL** | **Permanent fund-lockup possible** if accountant gets auto-paused (A-1) with bounds too tight to unpause cleanly AND all chains share the same pause → no user-initiated exit exists. Needs an `emergencyBulkWithdraw` using a governance-frozen rate snapshot. | Design-track — BLOCKS MAINNET PRODUCTION until landed |
+| N-2 (Hyperlane mirror) | HIGH | Same class as LZ N-2 but on Hyperlane: `handle` calls `_beforeReceive` which reverts on pause → permanent loss if destination paused during relay. Different fix: remove `_beforeReceive` from receive handlers globally, or queue inbound while paused. | Design-track |
+| R-4 | HIGH | Single-step `transferOwnership` typo bricks contracts | Ship Ownable2Step wrapper or post-deploy owner invariants — tracked |
+| R-5 | MEDIUM | A-3's 5% deviation cap traps admin if provider legitimately drifted > 5%. Need a `forceReplaceRateProvider` with timelock escape. | Follow-up |
+| N-3 | MEDIUM→HIGH | 0xMacro A-4 M-4: rate-calc decimals for pegged quote assets — spot-check needed on `getRateInQuote` + `claimFees` | Verification task |
+| N-4 | MEDIUM | Solmate `SafeTransferLib` fake-shares: `addAsset` + `setRateProviderData` with an `address(0)` asset = silent phantom mint. Add `asset.code.length > 0` check in `BoringVault.enter`. | Follow-up |
+| N-5 | LOW/MED | Flash-loan caller check: make `msg.sender == balancerVault` explicit in `receiveFlashLoan` (orthogonal to V-3) | Follow-up |
+| N-7 | LOW | Hyperlane `_quote` payload fee underestimation (Pashov HL L-3) | Spot-check |
+| N-8 | LOW/MED | `AtomicQueue.solve` `assetsForWant` overestimation vs accumulated per-user (Pashov HL L-5) | Spot-check |
+
+**R-1 is the single most important deferred item.** It's not a bug in any one contract — it's the architectural property that, under combined adverse conditions, users have no on-chain exit. Every well-designed vault system ships with an emergency-exit primitive; this one currently does not.
 
 ---
 
