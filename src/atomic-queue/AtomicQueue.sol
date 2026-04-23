@@ -82,6 +82,7 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     error AtomicQueue__PastDeadline(uint64 deadline, uint256 nowTs);
     error AtomicQueue__InsufficientOfferBalance(uint256 balance, uint96 offerAmount);
     error AtomicQueue__InsufficientOfferAllowance(uint256 allowance, uint96 offerAmount);
+    error AtomicQueue__SolverMustBeSender(address sender, address solver);
 
     //============================== EVENTS ===============================
 
@@ -173,6 +174,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
             if (bal < offerAmount) revert AtomicQueue__InsufficientOfferBalance(bal, offerAmount);
             uint256 allowance = offer.allowance(msg.sender, address(this));
             if (allowance < offerAmount) revert AtomicQueue__InsufficientOfferAllowance(allowance, offerAmount);
+            // Audit Q-2: the submission-time dust check (wantAmount > 0) is intentionally NOT
+            // applied here. It would require `_calculateWantAmount` which reverts when the (offer,
+            // want) pair has no rate-provider registered yet — breaking deployment sequencing
+            // patterns. The load-bearing fix is the solve-time skip-and-emit redesign of
+            // `AtomicQueue.solve` (deferred I-2 in SYSTEM_AUDIT.md §6).
         }
 
         AtomicRequest storage request = userAtomicRequest[msg.sender][offer][want];
@@ -208,6 +214,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         requiresAuth
         nonReentrant
     {
+        // Audit Q-1: require the caller to be the solver. Previously a SOLVER_ROLE holder
+        // could route the offer-pull / want-push through any IAtomicSolver-compatible
+        // contract with a lurking queue allowance — forced-trade griefing. Canonical
+        // callers (AtomicSolverV5.p2pSolve / redeemSolve) already pass `address(this)`.
+        if (solver != msg.sender) revert AtomicQueue__SolverMustBeSender(msg.sender, solver);
+
         (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts) =
             _prepareSolve(offer, want, users, solver);
 
@@ -336,6 +348,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
             if (request.offerAmount > 0) {
                 metaData[i].assetsForWant = _calculateWantAmount(offer, want, request.offerAmount);
+                // Audit Q-3: flag users whose want-amount rounds to zero under the current rate.
+                // `solve` reverts the whole batch with ZeroOutputAmount in that case; honest
+                // solvers filtering by flags should see this before they submit the tx.
+                if (metaData[i].assetsForWant == 0) {
+                    metaData[i].flags |= uint8(1) << 4;
+                }
             }
 
             if (metaData[i].flags == 0) {
