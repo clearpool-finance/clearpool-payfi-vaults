@@ -118,6 +118,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     error TellerWithMultiAssetSupport__ZeroShares();
     error TellerWithMultiAssetSupport__Paused();
     error TellerWithMultiAssetSupport__KeyringCredentialInvalid();
+    error TellerWithMultiAssetSupport__KeyringNotConfigured();
     error TellerWithMultiAssetSupport__NotWhitelisted();
 
     //============================== EVENTS ===============================
@@ -168,7 +169,11 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      */
     modifier checkAccess(address _entity) {
         if (accessControlMode == AccessControlMode.KEYRING_KYC) {
-            if (!contractWhitelist[_entity] && address(keyringContract) != address(0)) {
+            // Fail closed if an admin flipped the mode to KEYRING_KYC without first configuring
+            // the keyring contract (audit T-4). Previously the modifier let every non-whitelisted
+            // address through in that window.
+            if (!contractWhitelist[_entity]) {
+                if (address(keyringContract) == address(0)) revert TellerWithMultiAssetSupport__KeyringNotConfigured();
                 if (!keyringContract.checkCredential(keyringPolicyId, _entity)) {
                     revert TellerWithMultiAssetSupport__KeyringCredentialInvalid();
                 }
@@ -430,6 +435,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         checkAccess(_to)
         returns (uint256 shares)
     {
+        if (isPaused) revert TellerWithMultiAssetSupport__Paused(); // audit T-7
         if (!isSupported[_depositAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
 
         shares = _erc20Deposit(_depositAsset, _depositAmount, _minimumMint, _to);
@@ -448,9 +454,10 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     )
         external
         requiresAuth
-        checkAccess(msg.sender)
+        checkAccess(_to)
         returns (uint256 assetsOut)
     {
+        if (isPaused) revert TellerWithMultiAssetSupport__Paused(); // audit T-7
         if (!isSupported[_withdrawAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
         if (_shareAmount == 0) revert TellerWithMultiAssetSupport__ZeroShares();
 
@@ -530,6 +537,9 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         // Calculate shares using 18 decimal values
         shares = depositValueIn18.mulDivDown(ONE_SHARE, rate);
 
+        // Audit T-8: reject dust deposits that round to zero shares even when the caller
+        // passes _minimumMint = 0. Previously the vault still pulled the tokens.
+        if (shares == 0) revert TellerWithMultiAssetSupport__ZeroShares();
         if (shares < _minimumMint) revert TellerWithMultiAssetSupport__MinimumMintNotMet();
 
         uint256 shareValueInBase = shares.mulDivDown(rate, ONE_SHARE);
