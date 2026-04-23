@@ -32,6 +32,7 @@ contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard {
 
     error AtomicSolverV5___WrongInitiator();
     error AtomicSolverV5___WrongQueue(address expected, address actual);
+    error AtomicSolverV5___UnapprovedQueue(address queue);
     error AtomicSolverV5___AlreadyInSolveContext();
     error AtomicSolverV5___NotInSolveContext();
     error AtomicSolverV5___FailedToSolve();
@@ -42,34 +43,65 @@ contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard {
     error AtomicSolverV5___RedeemProceedsShortfall(uint256 proceeds, uint256 required);
     error AtomicSolverV5___ZeroAddress();
 
+    //============================== EVENTS ===============================
+
+    event QueueApprovalSet(address indexed queue, bool approved);
+
     //============================== STATE ===============================
 
     /**
      * @notice In-contract solve-context flag.
      * @dev Set to 1 by the `inSolveContext` modifier wrapping `p2pSolve` / `redeemSolve`,
-     *      asserted in `finishSolve` to prove the callback is reached via a legitimate
-     *      `queue.solve()` path. Complements the Authority-level `QUEUE_ROLE` gate —
-     *      defense-in-depth if Authority is ever misconfigured.
+     *      asserted in `finishSolve` to prove the callback is reached via a live solve.
      */
     uint256 private _inSolveContext;
 
     /**
      * @notice Queue address snapshotted on entry to p2pSolve / redeemSolve.
-     * @dev Asserted to equal msg.sender in finishSolve. Defeats the cascade where a
-     *      compromised OPERATOR grants QUEUE_ROLE to a rogue queue and wraps an
-     *      attacker-controlled finishSolve inside a legitimate p2pSolve call.
+     * @dev Asserted to equal msg.sender in finishSolve. Blocks a sibling QUEUE_ROLE
+     *      address from intercepting a callback from a solve that was initiated with
+     *      a different queue.
      */
     address private _expectedQueue;
+
+    /**
+     * @notice Explicit whitelist of AtomicQueue contracts this solver will route through.
+     * @dev This is the primary defense against the rogue-queue attack. A compromised
+     *      OPERATOR still holds `setUserRole` (needed for ordinary borrower onboarding),
+     *      so they can mint `QUEUE_ROLE` on any address. Without this whitelist the
+     *      attacker could then call `p2pSolve(rogueQueue, ...)` and drive the full drain
+     *      chain — `_expectedQueue` would be SET to the rogue queue (because the
+     *      attacker is the one initiating the solve), so that check does not help here.
+     *      Approvals are gated by `requiresAuth`, so the owner — or a role explicitly
+     *      granted the `setQueueApproved` selector — controls queue membership.
+     */
+    mapping(address => bool) public approvedQueues;
 
     //============================== MODIFIERS ===============================
 
     modifier inSolveContext(address queue) {
+        if (!approvedQueues[queue]) revert AtomicSolverV5___UnapprovedQueue(queue);
         if (_inSolveContext != 0) revert AtomicSolverV5___AlreadyInSolveContext();
         _inSolveContext = 1;
         _expectedQueue = queue;
         _;
         _inSolveContext = 0;
         _expectedQueue = address(0);
+    }
+
+    //============================== QUEUE MANAGEMENT ===============================
+
+    /**
+     * @notice Approve (or revoke) an AtomicQueue as a valid counterparty for solves.
+     * @dev Gated by `requiresAuth`. Intentionally narrower than the Authority-level
+     *      `QUEUE_ROLE` grant: OPERATOR holds `setUserRole` and can mint roles freely,
+     *      but only the owner (or a role specifically granted this selector) can decide
+     *      which queues this solver routes funds through.
+     */
+    function setQueueApproved(address queue, bool approved) external requiresAuth {
+        if (queue == address(0)) revert AtomicSolverV5___ZeroAddress();
+        approvedQueues[queue] = approved;
+        emit QueueApprovalSet(queue, approved);
     }
 
     //============================== IMMUTABLES ===============================
@@ -131,12 +163,19 @@ contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard {
     //============================== ISOLVER FUNCTIONS ===============================
 
     /**
-     * @notice Implement the finishSolve function WithdrawQueue expects to call.
-     * @dev Two layers of protection:
-     *      1. `requiresAuth` + (off-chain) role wiring restrict direct callers to the queue.
-     *      2. `_inSolveContext == 1` proves in-contract that we arrived via a legitimate
-     *         `p2pSolve` / `redeemSolve` → `queue.solve()` → callback path. This defends
-     *         against Authority misconfiguration even granting the selector to an attacker.
+     * @notice Implement the finishSolve function AtomicQueue expects to call.
+     * @dev Layered defense against the original C-1 drain (and its OPERATOR-cascade variant):
+     *      1. `requiresAuth` + role wiring restricts direct callers (Authority layer).
+     *      2. `_inSolveContext == 1` proves a live p2pSolve / redeemSolve is in flight.
+     *      3. `msg.sender == _expectedQueue` blocks sibling QUEUE_ROLE addresses from
+     *         intercepting a callback whose solve was initiated with a different queue.
+     *      4. `approvedQueues[_expectedQueue]` (enforced by the inSolveContext modifier)
+     *         blocks rogue queues even when the attacker is the one calling p2pSolve —
+     *         the primary defense against the OPERATOR-grants-QUEUE_ROLE cascade.
+     *      The `initiator != address(this)` check is retained as defense-in-depth against
+     *      a queue implementation that forgets to hardcode `msg.sender` as the initiator;
+     *      AtomicQueue.solve does hardcode it, so this check does not guard any currently
+     *      reachable attack — it documents the invariant contractually.
      */
     function finishSolve(
         bytes calldata runData,
@@ -150,10 +189,8 @@ contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard {
         requiresAuth
     {
         if (_inSolveContext != 1) revert AtomicSolverV5___NotInSolveContext();
-        // Assert the callback comes from the exact queue whose solve() we invoked,
-        // not a sibling queue that may hold QUEUE_ROLE.
         if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(_expectedQueue, msg.sender);
-        if (initiator != address(this)) revert AtomicSolverV5___WrongInitiator();
+        if (initiator != address(this)) revert AtomicSolverV5___WrongInitiator(); // vestigial; see NatSpec
 
         address queue = msg.sender;
 

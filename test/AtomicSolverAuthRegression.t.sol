@@ -10,6 +10,31 @@ import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAsset
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
+import { IAtomicSolver } from "src/atomic-queue/IAtomicSolver.sol";
+
+/// @notice Mock queue that implements the CT-2/F-1 attack: ignore the normal protocol
+///         and immediately call `solver.finishSolve` with attacker-supplied runData.
+contract RogueQueue {
+    function solve(
+        ERC20 offer,
+        ERC20 want,
+        address[] calldata, /*users*/
+        bytes calldata, /*runData*/
+        address solver
+    )
+        external
+    {
+        // Attacker-chosen runData: drain `victim`'s allowance to solver, using the
+        // SolveType.P2P path to route through _p2pSolve.
+        bytes memory evilRunData = abi.encode(
+            AtomicSolverV5.SolveType.P2P,
+            address(0xdEADBEeF00000000000000000000000000000000), // victim
+            uint256(0),
+            type(uint256).max
+        );
+        IAtomicSolver(solver).finishSolve(evilRunData, solver, offer, want, 0, 100_000e18);
+    }
+}
 
 /// @title Regression tests for the 2026-04-20 AtomicSolverV5 auth misconfiguration
 /// @notice These tests mirror the auth wiring produced by
@@ -79,6 +104,9 @@ contract AtomicSolverAuthRegression is Test {
 
         // Other capabilities (subset of ConfigureAtomicRoles that's relevant here)
         authority.setUserRole(address(solver), SOLVER_ROLE, true);
+
+        // In-contract whitelist: the real queue is approved; any other queue is not.
+        solver.setQueueApproved(address(queue), true);
     }
 
     function test_correctWiring_attackerCannotCallFinishSolve() public {
@@ -97,24 +125,60 @@ contract AtomicSolverAuthRegression is Test {
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
-    function test_rogueQueueWithQueueRoleStillBlocked() public {
+    function test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext() public {
         _wireCorrect();
 
-        // Simulate RT-2 finding F-1: a compromised OPERATOR grants QUEUE_ROLE to a
-        // second address (rogue queue). Even though the rogue queue passes requiresAuth,
-        // the _expectedQueue check must reject the callback because no p2pSolve with
-        // `queue = rogueQueue` has been initiated. We simulate this by first entering
-        // a solve via a different path then having the wrong queue attempt the callback.
-        // In practice here we just verify: any address calling finishSolve without first
-        // triggering p2pSolve from that queue sees NotInSolveContext / WrongQueue.
-        address rogueQueue = address(0xBadBadBad);
-        authority.setUserRole(rogueQueue, QUEUE_ROLE, true);
+        // A rogue QUEUE_ROLE holder attempts a direct finishSolve call without first
+        // entering a solve. Blocked by `_inSolveContext != 1` at the top of finishSolve.
+        address rogueEOA = address(0xBadBadBad);
+        authority.setUserRole(rogueEOA, QUEUE_ROLE, true);
 
         bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, victim, uint256(0), type(uint256).max);
 
-        vm.prank(rogueQueue);
+        vm.prank(rogueEOA);
         vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
+    }
+
+    /// @notice End-to-end reproduction of CT-2/F-1 (the real attack path).
+    /// @dev Models a compromised OPERATOR who:
+    ///        1. Still holds `setUserRole` on the Authority (needed for borrower onboarding).
+    ///        2. Has `p2pSolve` capability via the normal role wiring (OPERATOR has it).
+    ///        3. Mints QUEUE_ROLE on an attacker-deployed RogueQueue contract.
+    ///        4. Calls `solver.p2pSolve(rogueQueue, …)` to enter a live solve with the rogue.
+    ///        5. RogueQueue.solve immediately callbacks finishSolve with attacker runData
+    ///           to drain any pre-approved address.
+    ///      Without the approved-queue whitelist, every check inside finishSolve passed
+    ///      (`_inSolveContext == 1`, `msg.sender == _expectedQueue == rogueQueue`,
+    ///      `initiator == address(this)`, `requiresAuth` OK) and the victim's allowance
+    ///      was drained. After, `p2pSolve` reverts at entry with `UnapprovedQueue` before
+    ///      the solve context is ever entered.
+    function test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist() public {
+        _wireCorrect();
+
+        // Wire the attacker like a compromised OPERATOR would.
+        bytes4 p2pSelector = bytes4(keccak256("p2pSolve(address,address,address,address[],uint256,uint256)"));
+        authority.setRoleCapability(OPERATOR_ROLE, address(solver), p2pSelector, true);
+        authority.setUserRole(attacker, OPERATOR_ROLE, true);
+
+        // Attacker deploys and Authority-registers the rogue queue.
+        RogueQueue rogue = new RogueQueue();
+        authority.setUserRole(address(rogue), QUEUE_ROLE, true);
+
+        uint256 victimBefore = want.balanceOf(victim);
+        address[] memory users = new address[](0);
+
+        // Exploit entry: must revert at UnapprovedQueue BEFORE the solve context opens.
+        vm.prank(attacker);
+        vm.expectRevert(
+            abi.encodeWithSelector(AtomicSolverV5.AtomicSolverV5___UnapprovedQueue.selector, address(rogue))
+        );
+        solver.p2pSolve(AtomicQueue(address(rogue)), ERC20(address(want)), ERC20(address(want)), users, 0, 1);
+
+        // Victim untouched.
+        assertEq(want.balanceOf(victim), victimBefore, "victim funds must not move");
+        assertEq(want.balanceOf(address(solver)), 0, "solver must hold no victim funds");
+        assertEq(want.allowance(address(solver), attacker), 0, "attacker must hold no allowance");
     }
 
     function test_correctWiring_queueCanPassAuthButLockBlocksDirectCall() public {

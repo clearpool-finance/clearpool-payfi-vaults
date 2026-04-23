@@ -92,6 +92,7 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
         l1Authority = new RolesAuthority(owner, Authority(address(0)));
         l1AtomicQueue = new AtomicQueue(address(l1Accountant), owner, l1Authority);
         l1AtomicSolver = new AtomicSolverV5(owner, l1Authority);
+        l1AtomicSolver.setQueueApproved(address(l1AtomicQueue), true);
 
         // Setup authorities
         l1Vault.setAuthority(l1Authority);
@@ -118,6 +119,7 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
         l2Authority = new RolesAuthority(owner, Authority(address(0)));
         l2AtomicQueue = new AtomicQueue(address(l2Accountant), owner, l2Authority);
         l2AtomicSolver = new AtomicSolverV5(owner, l2Authority);
+        l2AtomicSolver.setQueueApproved(address(l2AtomicQueue), true);
 
         // Setup authorities
         l2Vault.setAuthority(l2Authority);

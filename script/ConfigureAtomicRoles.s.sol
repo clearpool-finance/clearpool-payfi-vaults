@@ -5,6 +5,7 @@ import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { BaseScript } from "./Base.s.sol";
 import { ConfigReader } from "./ConfigReader.s.sol";
 import "./../src/helper/Constants.sol";
@@ -139,6 +140,13 @@ contract ConfigureAtomicRoles is BaseScript {
 
         // Allow AtomicSolver to call bulkWithdraw on Teller (for redeem solve)
         authority.setRoleCapability(SOLVER_ROLE, teller, TellerWithMultiAssetSupport.bulkWithdraw.selector, true);
+
+        // === APPROVE QUEUE ON SOLVER ===
+        // Explicit in-contract whitelist of legitimate queues. A compromised OPERATOR still
+        // holds `setUserRole` on the Authority (needed for ordinary borrower onboarding),
+        // so they can mint QUEUE_ROLE on arbitrary addresses. This list ensures the solver
+        // only routes through queues the owner has vetted, independent of role state.
+        AtomicSolverV5(atomicSolver).setQueueApproved(atomicQueue, true);
 
         // === WHITELIST ATOMIC SOLVER ===
         // Whitelist the AtomicSolver contract so it can call bulkWithdraw

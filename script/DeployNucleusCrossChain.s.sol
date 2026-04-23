@@ -135,6 +135,7 @@ contract DeployNucleusCrossChain is Script {
 
         // Deploy L1 AtomicSolver
         l1AtomicSolver = new AtomicSolverV5(owner, l1Authority);
+        l1AtomicSolver.setQueueApproved(address(l1AtomicQueue), true);
         console2.log("L1 AtomicSolver deployed:", address(l1AtomicSolver));
 
         // Setup L1 permissions
@@ -185,6 +186,7 @@ contract DeployNucleusCrossChain is Script {
 
         // Deploy L2 AtomicSolver
         l2AtomicSolver = new AtomicSolverV5(owner, l2Authority);
+        l2AtomicSolver.setQueueApproved(address(l2AtomicQueue), true);
         console2.log("L2 AtomicSolver deployed:", address(l2AtomicSolver));
 
         // Setup L2 permissions

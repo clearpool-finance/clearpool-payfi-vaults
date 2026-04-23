@@ -80,6 +80,7 @@ contract TellerWithMultiAssetSupportTest is Test, MainnetAddresses {
 
         atomicQueue = new AtomicQueue(address(accountant), address(this), rolesAuthority);
         atomicSolverV3 = new AtomicSolverV5(address(this), rolesAuthority);
+        atomicSolverV3.setQueueApproved(address(atomicQueue), true);
 
         boringVault.setAuthority(rolesAuthority);
         accountant.setAuthority(rolesAuthority);
