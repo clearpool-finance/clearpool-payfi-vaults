@@ -51,7 +51,14 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
         }
 
         uint256 shareAmount = _erc20Deposit(depositAsset, depositAmount, minimumMint, msg.sender);
-        _afterPublicDeposit(msg.sender, depositAsset, depositAmount, shareAmount, shareLockPeriod);
+        // Audit N-1 (R-2): pass `shareLockPeriod = 0` so `shareUnlockTime[msg.sender]` is not
+        // set. The shares are burned in the same tx by `bridge()` below, which calls
+        // `beforeTransfer(msg.sender)` — if a non-zero shareLockPeriod was baked in here the
+        // check would deadlock `depositAndBridge` on any deployment that uses share-lock
+        // MEV protection. The protection only matters for local deposit→withdraw sandwiches,
+        // and there is no sandwich window for a composite deposit→bridge (shares leave this
+        // chain atomically). History entry + event are still emitted for audit trail.
+        _afterPublicDeposit(msg.sender, depositAsset, depositAmount, shareAmount, 0);
         bridge(shareAmount, data);
     }
 

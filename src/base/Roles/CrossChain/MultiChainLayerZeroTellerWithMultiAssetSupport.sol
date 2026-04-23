@@ -68,7 +68,13 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupport is MultiChainTellerBase,
             revert MultiChainTellerBase_MessagesNotAllowedFrom(_origin.srcEid);
         }
 
-        accountant.checkpoint();
+        // Audit N-2 (R-3): removed `accountant.checkpoint()` from this path. The checkpoint
+        // reverts when the accountant is paused, which turned any destination-side pause
+        // into a LayerZero message black-hole — source shares already burned, destination
+        // mint stuck in LZ retry forever. Hyperlane/OP receive handlers do not call
+        // checkpoint, so removing it here also restores parity across bridges.
+        // Bridged mints only affect supply accounting; fee accrual doesn't need to run
+        // per-message — the next local deposit / withdraw / solve will checkpoint.
 
         // Decode the payload to get the message
         (uint256 shareAmount, address receiver) = abi.decode(payload, (uint256, address));

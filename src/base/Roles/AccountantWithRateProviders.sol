@@ -282,23 +282,40 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
     function setRateProviderData(ERC20 _asset, bool _isPeggedToBase, address _rateProvider) external requiresAuth {
         RateProviderData memory prior = rateProviderData[_asset];
+        bool hasPrior = prior.isPeggedToBase || address(prior.rateProvider) != address(0);
 
-        // Audit A-3: sanity-probe the NEW non-pegged rate provider and — if replacing an
-        // existing non-pegged provider for this asset — require the new rate is within
-        // RATE_PROVIDER_MAX_DEVIATION_BPS of the old. This is a lightweight alternative
-        // to a full timelock (tracked as follow-up in SYSTEM_AUDIT.md).
-        // First-time registrations and pegged assets skip the deviation check.
+        // Audit A-3 (refined per R3 validation): sanity-probe the NEW non-pegged rate
+        // provider. If ANY prior registration exists for this asset (pegged or non-pegged),
+        // require the new rate is within RATE_PROVIDER_MAX_DEVIATION_BPS of the prior
+        // effective rate. This closes the pegged-bypass discovered in R3 review: an
+        // attacker with owner auth previously could flip pegged=true, address(0) (which
+        // passed without probes) and then register an inflated non-pegged provider with
+        // prior.isPeggedToBase==true — skipping the deviation check entirely.
         if (!_isPeggedToBase && _rateProvider != address(0)) {
             uint256 newRate = IRateProvider(_rateProvider).getRate();
             if (newRate == 0) revert AccountantWithRateProviders__RateProviderZeroRate();
 
-            if (!prior.isPeggedToBase && address(prior.rateProvider) != address(0)) {
-                uint256 oldRate = prior.rateProvider.getRate();
-                if (oldRate != 0) {
-                    uint256 diff = newRate > oldRate ? newRate - oldRate : oldRate - newRate;
-                    if (diff.mulDivDown(BASIS_POINTS, oldRate) > RATE_PROVIDER_MAX_DEVIATION_BPS) {
-                        revert AccountantWithRateProviders__RateProviderDeviationTooHigh(oldRate, newRate);
+            if (hasPrior) {
+                // Effective prior rate: 1e18 for pegged (since pegged means 1:1 with base in 18-dec),
+                // else the prior provider's live rate.
+                uint256 oldRate;
+                if (prior.isPeggedToBase) {
+                    oldRate = 10 ** 18;
+                } else {
+                    // Try to read the prior provider; if it reverts or returns 0 we cannot
+                    // assert deviation, so fail closed — admin must remove-then-add via a
+                    // dedicated replacement path (tracked as future timelocked rescue).
+                    try prior.rateProvider.getRate() returns (uint256 r) {
+                        oldRate = r;
+                    } catch {
+                        oldRate = 0;
                     }
+                    if (oldRate == 0) revert AccountantWithRateProviders__RateProviderZeroRate();
+                }
+
+                uint256 diff = newRate > oldRate ? newRate - oldRate : oldRate - newRate;
+                if (diff.mulDivDown(BASIS_POINTS, oldRate) > RATE_PROVIDER_MAX_DEVIATION_BPS) {
+                    revert AccountantWithRateProviders__RateProviderDeviationTooHigh(oldRate, newRate);
                 }
             }
         }

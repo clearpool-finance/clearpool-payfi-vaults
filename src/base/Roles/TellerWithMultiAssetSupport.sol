@@ -454,9 +454,18 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     )
         external
         requiresAuth
+        checkAccess(msg.sender)
         checkAccess(_to)
         returns (uint256 assetsOut)
     {
+        // Audit T-2 (refined, R3 follow-up): check BOTH the caller (solver contract) AND
+        // the final recipient. In the canonical AtomicSolver flow, `_to = address(this)`,
+        // so `_to` is the solver contract, not the end user — `_to`-only check lets a
+        // whitelisted solver pull to itself before forwarding to a sanctioned user. By
+        // also gating `msg.sender`, the solver contract itself must pass access. End-user
+        // compliance is still enforced at the queue layer where the actual user addresses
+        // live; SYSTEM_AUDIT.md tracks pushing a per-user check into AtomicQueue._finalizeSolve
+        // as a follow-up.
         if (isPaused) revert TellerWithMultiAssetSupport__Paused(); // audit T-7
         if (!isSupported[_withdrawAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
         if (_shareAmount == 0) revert TellerWithMultiAssetSupport__ZeroShares();

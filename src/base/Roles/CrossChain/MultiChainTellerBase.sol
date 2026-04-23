@@ -75,6 +75,13 @@ abstract contract MultiChainTellerBase is CrossChainTellerBase {
         if (allowMessagesTo && messageGasLimit == 0) {
             revert MultiChainTellerBase_ZeroMessageGasLimit();
         }
+        // Audit N-6 (Pashov HL L-2): if either direction is allowed, the targetTeller on
+        // the sibling chain must be explicitly set. address(0) as targetTeller renders the
+        // `allowMessagesFromChain` check trivially matchable for senders that happen to
+        // equal address(0) (none in practice, but fail-closed).
+        if ((allowMessagesFrom || allowMessagesTo) && targetTeller == address(0)) {
+            revert MultiChainTellerBase_TargetTellerIsZeroAddress();
+        }
         selectorToChains[chainSelector] =
             Chain(allowMessagesFrom, allowMessagesTo, targetTeller, messageGasLimit, messageGasMin);
 
@@ -99,6 +106,8 @@ abstract contract MultiChainTellerBase is CrossChainTellerBase {
      * @param chainSelector of chain
      */
     function allowMessagesFromChain(uint32 chainSelector, address targetTeller) external requiresAuth {
+        // Audit N-6 (Pashov HL L-2): enforce non-zero targetTeller at activation.
+        if (targetTeller == address(0)) revert MultiChainTellerBase_TargetTellerIsZeroAddress();
         Chain storage chain = selectorToChains[chainSelector];
         chain.allowMessagesFrom = true;
         chain.targetTeller = targetTeller;
