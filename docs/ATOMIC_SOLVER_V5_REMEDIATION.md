@@ -3,11 +3,11 @@
 **Source report:** `hack-report.md.pdf` (2026-04-21, adversarial AI audit)
 **Target contract:** `src/atomic-queue/AtomicSolverV5.sol` (pragma 0.8.22)
 **Reviewed against:** `54b670d` (post `e137ca9` "Finish solve must be private") on `main`
-**Branch:** `security/atomicsolverv3-remediation` — 17 commits, 146/146 tests passing.
+**Branch:** `security/atomicsolverv3-remediation` — 147/147 tests passing.
 
-**Status:** All 12 hack-report findings validated and fixed. The one originally deferred finding (I-2, batch isolation) is partially addressed via submission-time validation; the remaining keeper-breaking portion is intentionally scoped to a separate PR. Plus one HIGH-severity clearpool team finding (rogue-queue cascade) identified and fixed. Plus two operational tightening PRs (OPERATOR authority, `rescue` wiring) folded in as a single package.
+**Status:** All 12 hack-report findings validated and fixed. I-2 is partially addressed via submission-time validation in `updateAtomicRequest`; the keeper-breaking `solve`-side half is scoped to a separate PR. Plus one HIGH-severity finding from the clearpool team review (rogue-queue cascade) — **found incomplete on first pass and fully closed on second** via an on-contract `approvedQueues` whitelist. See §3.12 for the full chronology. Plus operational tightening (OPERATOR authority scope, `rescue` role wiring, `CheckAuthConfiguration` invariants) and the deletion of dormant `AtomicSolverV2`.
 
-**The solver is solid.** Every in-contract invariant the hack report called for is now enforced on-chain, every auth invariant is enforced at deploy-time via `CheckAuthConfiguration`, and the regression suite covers both the original exploit calldata and the clearpool team cascade.
+**The solver is solid.** The clearpool team's end-to-end exploit reproduction test (`test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist`) demonstrates the fix works against the full attack path — not just direct `finishSolve` calls. Every in-contract invariant the hack report called for is enforced on-chain, and `CheckAuthConfiguration` asserts the deploy-time invariants across every deployment config.
 
 ---
 
@@ -17,12 +17,12 @@ Status is as of the `security/atomicsolverv3-remediation` branch.
 
 | ID  | Severity | Title                                                                 | Line(s) in src | Valid? | Status |
 |-----|----------|-----------------------------------------------------------------------|----------------|--------|--------|
-| C-1 | CRITICAL | Direct `finishSolve` call drains pre-approvals                         | 101–123        | ✅ Yes | ✅ Fixed — in-contract `_inSolveContext` + `_expectedQueue` locks (§3.1, §3.12) |
+| C-1 | CRITICAL | Direct `finishSolve` call drains pre-approvals                         | 101–123        | ✅ Yes | ✅ Fixed — in-contract `_inSolveContext` + `_expectedQueue` + `approvedQueues` whitelist (§3.1, §3.12) |
 | H-1 | HIGH     | Missing `nonReentrant` contradicts NatSpec (ERC777 reentrancy)         | 52, 73, 94–99  | ✅ Yes | ✅ Fixed — solmate `ReentrancyGuard` + `nonReentrant` on both outer paths (§3.2) |
 | H-2 | HIGH     | `safeApprove` without zero-reset breaks permanently on USDT            | 160, 194       | ✅ Yes | ✅ Fixed — zero-reset prepended at both approval sites (§3.3) |
 | H-3 | HIGH     | Fee-on-transfer `want` → approval overcommits contract balance         | 151+160, 188+194 | ✅ Yes | ✅ Fixed — `balanceOf` delta reconcile + early revert (§3.4) |
 | M-1 | MEDIUM   | CEI violation in `_redeemSolve` (`bulkWithdraw` before `safeTransferFrom`) | 188 vs 191 | ✅ Yes | ✅ Fixed — redesigned to send proceeds to self, pay solver profit last (§3.5) |
-| M-2 | MEDIUM   | Authority misconfig is single point of failure                         | —              | ✅ Yes | ✅ Fixed — `_inSolveContext` + `_expectedQueue` checks are in-contract, independent of Authority (§3.1, §3.12) |
+| M-2 | MEDIUM   | Authority misconfig is single point of failure                         | —              | ✅ Yes | ✅ Fixed — `_inSolveContext` + `_expectedQueue` + `approvedQueues` whitelist are in-contract invariants, independent of Authority (§3.1, §3.12) |
 | M-3 | MEDIUM   | Zero-address owner not guarded in constructor                          | 45             | ✅ Yes | ✅ Fixed — constructor revert on `_owner == address(0)` (§3.6) |
 | M-4 | MEDIUM   | `wantApprovalAmount` unbounded vs `bulkWithdraw` proceeds              | 185–188        | ✅ Yes | ✅ Fixed — capture `assetsOut`, revert on shortfall with explicit error (§3.7) |
 | L-1 | LOW      | Unused `eETH` / `weETH` constants                                       | 19–20          | ✅ Yes | ✅ Fixed — constants removed (§3.8) |
@@ -269,32 +269,64 @@ for (uint256 i; i < users.length; ++i) {
 }
 ```
 
-### 3.12. [CT-2/F-1] Rogue-queue defense — ✅ SHIPPED (`125abbb`)
+### 3.12. [CT-2/F-1] Rogue-queue defense — ✅ SHIPPED in two layers
 
 **Not in the original hack report — surfaced by the clearpool team review.**
 
-**Bug.** `OPERATOR_ROLE` was granted `setRoleCapability` / `setUserRole` on the Authority in the same commit that hotfixed C-1 (`e137ca9`). A compromised operator could `setUserRole(rogueQueue, QUEUE_ROLE, true)` and then call `solver.p2pSolve(rogueQueue, …)`. Inside that call `queue.solve` dispatches to the attacker's queue, which callbacks `finishSolve` with attacker-chosen `runData` — `_inSolveContext == 1` passes (we ARE in a live solve), `initiator == address(this)` passes (queues hard-code it), and `requiresAuth` passes (rogueQueue holds `QUEUE_ROLE`). The solver then executes `safeTransferFrom(victim, address(this), …)` on whoever the attacker names. Full C-1 drain, just via a legitimate `p2pSolve` wrapper.
+**Bug.** `OPERATOR_ROLE` was granted `setRoleCapability` / `setUserRole` on the Authority in the same commit that hotfixed C-1 (`e137ca9`). A compromised operator can:
 
-**Shipped.** Snapshot the queue address at solve entry; assert the callback comes from exactly that queue.
+1. `setUserRole(rogueQueue, QUEUE_ROLE, true)` — OPERATOR holds this, needed for borrower onboarding.
+2. Call `solver.p2pSolve(rogueQueue, …)` — OPERATOR holds `p2pSolve` too.
+3. `rogueQueue.solve` callbacks `finishSolve` with attacker-chosen `runData`.
+4. Checks inside `finishSolve` all pass: `_inSolveContext == 1` (we ARE in a live solve), `msg.sender == _expectedQueue` (the attacker IS the initiator, so `_expectedQueue == rogueQueue`), `initiator == address(this)`, `requiresAuth`.
+5. `_p2pSolve` runs attacker runData → drains any address with standing approval.
+
+**Layer 1 — `_expectedQueue` snapshot (`125abbb`).** Catches a *sibling* `QUEUE_ROLE` address trying to intercept a callback from a solve that was initiated with a *different* queue. Useful but **does not** close the real attack above — when the attacker is the one calling `p2pSolve(rogueQueue, …)`, `_expectedQueue` is set to `rogueQueue` and the check passes. This was a partial mitigation that overstated itself in the first draft of the report.
+
+**Layer 2 — `approvedQueues` whitelist (`5ae4100`).** The real fix. An explicit on-contract mapping of legitimate queues, owner-gated via `requiresAuth`:
 
 ```solidity
-address private _expectedQueue;      // reset to address(0) by the inSolveContext modifier
+mapping(address => bool) public approvedQueues;
 
+function setQueueApproved(address queue, bool approved) external requiresAuth {
+    if (queue == address(0)) revert AtomicSolverV5___ZeroAddress();
+    approvedQueues[queue] = approved;
+    emit QueueApprovalSet(queue, approved);
+}
+
+modifier inSolveContext(address queue) {
+    if (!approvedQueues[queue]) revert AtomicSolverV5___UnapprovedQueue(queue);
+    if (_inSolveContext != 0)   revert AtomicSolverV5___AlreadyInSolveContext();
+    _inSolveContext = 1;
+    _expectedQueue  = queue;
+    _;
+    _inSolveContext = 0;
+    _expectedQueue  = address(0);
+}
+```
+
+**Why it works.** OPERATOR can still mint roles at the Authority layer (needed operationally), but cannot route the solver's funds through any queue the owner has not explicitly approved. The Authority surface is now irrelevant to this attack class — `p2pSolve(rogueQueue, …)` reverts at entry, before any state change, before `_inSolveContext` opens, before the callback fires.
+
+**Combined guard stack in `finishSolve`**:
+
+```solidity
 function finishSolve(...) external requiresAuth {
     if (_inSolveContext != 1)         revert AtomicSolverV5___NotInSolveContext();
-    if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(_expectedQueue, msg.sender);
-    if (initiator != address(this))   revert AtomicSolverV5___WrongInitiator();
+    if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(...);
+    if (initiator != address(this))   revert AtomicSolverV5___WrongInitiator(); // vestigial; see NatSpec
     ...
 }
 ```
 
-**Why it works.** The rogue queue passes the Authority gate but cannot produce a matching `_expectedQueue` — that slot was written by the real `p2pSolve` call with the legitimate queue. The attacker would need to also compromise the real queue contract to pass this check.
+The `initiator` check is now **vestigial** — `_inSolveContext + _expectedQueue + approvedQueues` collectively cover every exploit path against the current `AtomicQueue`. The check is retained as documentation of the callback invariant (and as defense-in-depth against a future queue implementation that forgets to hardcode `msg.sender` as initiator). This is called out in the `finishSolve` NatSpec.
 
-**Research citation.** This is the ERC-3156 lesson generalised — flashloan / solver callbacks must verify BOTH `msg.sender` (lender/queue) AND `initiator` (that the borrower/solver itself started the flow). See EIP-3156 §Security Considerations and RareSkills' walkthrough. We now do both.
+**Research citation.** The two-layer pattern mirrors the lesson from ERC-3156 § Security Considerations (flashloan receivers must verify BOTH lender identity AND that the borrower itself initiated) plus the "explicit whitelist" pattern used by Seaport Conduit (a conduit maintains an explicit list of which channels can invoke it, independent of role grants on the controller).
 
-**Regression test.** `test_rogueQueueWithQueueRoleStillBlocked()` grants `QUEUE_ROLE` to an attacker-controlled address and asserts direct `finishSolve` calls revert.
+**Regression tests.**
+- `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` — rogue `QUEUE_ROLE` address calls `finishSolve` directly with no live solve; reverts at `NotInSolveContext`.
+- `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` — **the full attack**. Deploys a `RogueQueue` mock, mints `QUEUE_ROLE` on it via a simulated compromised OPERATOR, has the attacker invoke `p2pSolve(rogueQueue, …)`. Asserts revert at `UnapprovedQueue` with victim funds untouched.
 
-**Off-chain follow-up (not on this branch).** Remove `setRoleCapability` from `OPERATOR_ROLE`. Tracked as follow-up PR #1 in §5.
+**Off-chain companion (already shipped, `96fc2af`).** Removed `setRoleCapability` from `OPERATOR_ROLE`. `setUserRole` is intentionally retained (borrower onboarding needs it); the approved-queue whitelist is what makes that retention safe.
 
 ### 3.13. [CT-1 hardening] Approve-before-outbound-transfer — ✅ SHIPPED (`125abbb` + `fec065a`)
 

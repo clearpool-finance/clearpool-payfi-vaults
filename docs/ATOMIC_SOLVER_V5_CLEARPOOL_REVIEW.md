@@ -10,7 +10,11 @@
 ## 0. TL;DR
 
 - **No new fund-draining exploit found** on top of the hack-report remediation.
-- **One genuine HIGH-severity finding** (CT-2 / F-1) — a rogue-queue cascade reachable via compromised `OPERATOR_ROLE` — **fixed in-contract** (`125abbb`) with a `_expectedQueue` assertion AND **fixed at the authority layer** (`96fc2af`) by removing `setRoleCapability` from `OPERATOR_ROLE`. Regression: `test_rogueQueueWithQueueRoleStillBlocked`.
+- **One genuine HIGH-severity finding** (CT-2 / F-1) — a rogue-queue cascade reachable via compromised `OPERATOR_ROLE` — required **two iterations** to close fully:
+  - Iteration 1 (`125abbb`): `_expectedQueue` snapshot. Catches a sibling queue intercepting a callback from a solve started with a different queue. **Incomplete** — does not help when the attacker is the one calling `p2pSolve(rogueQueue, …)` (`_expectedQueue` is set to the rogue queue, so `msg.sender == _expectedQueue` passes).
+  - Iteration 2 (`5ae4100`): on-contract `approvedQueues` whitelist gated by `requiresAuth`. This closes the real attack — `p2pSolve` reverts at entry with `UnapprovedQueue` before any state change.
+  - Off-chain tightening (`96fc2af`): removed `setRoleCapability` from `OPERATOR_ROLE`.
+  - Regressions: `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` (direct call) and `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` (full exploit reproduction through `p2pSolve` → `RogueQueue.solve` → `finishSolve`).
 - **One defense-in-depth hardening** (CT-1 / approval-before-transfer ordering) implemented in `fec065a`.
 - **Operational finding CT-2/F-2** (`rescue()` only callable by deployer EOA) fixed in `96fc2af`: `OPERATOR_ROLE` now holds `rescue.selector` and `CheckAuthConfiguration` asserts ownership is on `protocolAdmin`.
 - **Dormant legacy V2 solver deleted** (`36fabe3`). V1 retained only because `EtherFiLiquid1Migration.t.sol` still imports it.
@@ -36,20 +40,22 @@ Each was given the patched source (`src/atomic-queue/AtomicSolverV5.sol`), the r
 ## 2. Consolidated findings
 
 ### [CT-2 / F-1] — HIGH — Rogue queue via compromised OPERATOR_ROLE → `finishSolve` drain
-**Status:** ✅ Fixed in commit `125abbb`.
+**Status:** ✅ Fixed in two iterations. See chronology below — the first pass was incomplete and a review surfaced the gap.
 
 **Attack chain:**
 1. `OPERATOR_ROLE` was granted `authority.setUserRole` and `authority.setRoleCapability` in commit `e137ca9` (line 182–189 of `06_DeployRolesAuthority.s.sol`). Anyone holding this role can hand out `QUEUE_ROLE`.
 2. Attacker (compromised operator) calls `authority.setUserRole(rogueQueue, QUEUE_ROLE, true)` where `rogueQueue` is an attacker-controlled contract that implements only the `solve` selector.
 3. Same attacker still holds `p2pSolve` capability via `ConfigureAtomicRoles`. They call `solver.p2pSolve(rogueQueue, ...)`.
-4. Inside `p2pSolve`, the original `inSolveContext` modifier is set and then `queue.solve(...)` hands control to the rogue queue.
-5. `rogueQueue.solve` ignores the protocol and immediately calls `solver.finishSolve(attackerRunData, address(solver), offer, want, offerReceived, wantApprovalAmount)`.
-6. Prior to this fix, every check in `finishSolve` passed: `_inSolveContext == 1` (set by `p2pSolve`), `initiator == address(this)` (queue hard-codes it that way), `requiresAuth` (rogueQueue holds `QUEUE_ROLE`).
+4. Inside `p2pSolve`, the `inSolveContext` modifier opens — `_inSolveContext = 1`, `_expectedQueue = rogueQueue` (the attacker-supplied queue).
+5. `queue.solve(...)` dispatches to the rogue queue, which immediately calls `solver.finishSolve(attackerRunData, address(solver), offer, want, offerReceived, wantApprovalAmount)`.
+6. Every check in `finishSolve` passes: `_inSolveContext == 1`, `msg.sender == _expectedQueue` (both are the rogue queue), `initiator == address(this)`, `requiresAuth` (rogueQueue holds `QUEUE_ROLE`).
 7. `_p2pSolve` decodes `attackerRunData = (P2P, victim, 0, MAX)` and runs `want.safeTransferFrom(victim, address(this), wantApprovalAmount)` → drains any address with a standing approval to `AtomicSolverV5`.
 
-**Why the hack-report C-1 fix didn't catch this.** The original patch moved `finishSolve` from `setPublicCapability` to `setRoleCapability(QUEUE_ROLE, ...)`, and the subsequent in-contract `_inSolveContext` lock asserts "we are inside an active solve." But "an active solve" is proved for any solve — including a solve whose queue is the attacker's. The missing assertion is **which queue are we in a solve with**.
+**Why `_expectedQueue` alone is not enough.** The snapshot catches a sibling `QUEUE_ROLE` holder who tries to intercept a callback from a solve that was started with a DIFFERENT queue. It does not help here: the attacker is the one calling `p2pSolve(rogueQueue, …)`, so the snapshot is set to the rogue queue and the check trivially passes. This gap was missed in the first remediation pass (commit `125abbb`) and flagged by a code review. The initial wording of this report overstated the fix; it is now corrected.
 
-**Fix.** In `inSolveContext(address queue)` modifier, snapshot the queue address into a new `_expectedQueue` slot; in `finishSolve`, assert `msg.sender == _expectedQueue`. Rogue queue's address cannot match because the legitimate `p2pSolve` call stored the real queue.
+#### Fix iteration 1 (commit `125abbb`) — partial
+
+Snapshot the queue address at solve entry; assert `msg.sender == _expectedQueue` in `finishSolve`.
 
 ```solidity
 modifier inSolveContext(address queue) {
@@ -60,18 +66,47 @@ modifier inSolveContext(address queue) {
     _inSolveContext = 0;
     _expectedQueue = address(0);
 }
+```
 
-function finishSolve(...) external requiresAuth {
-    if (_inSolveContext != 1) revert AtomicSolverV5___NotInSolveContext();
-    if (msg.sender != _expectedQueue) revert AtomicSolverV5___WrongQueue(_expectedQueue, msg.sender);
-    if (initiator != address(this)) revert AtomicSolverV5___WrongInitiator();
+**Value provided.** Blocks cross-solve interception: if two legitimate queues both hold `QUEUE_ROLE` and share a solver, queue B cannot steal a callback that queue A started. That's a useful invariant.
+
+**Gap.** Does not block the case where the attacker starts the solve with a queue they control.
+
+#### Fix iteration 2 (commit `5ae4100`) — full closure
+
+Add an explicit on-contract whitelist of approved queues. Approvals are `requiresAuth`-gated (owner-only by default).
+
+```solidity
+mapping(address => bool) public approvedQueues;
+
+function setQueueApproved(address queue, bool approved) external requiresAuth {
+    if (queue == address(0)) revert AtomicSolverV5___ZeroAddress();
+    approvedQueues[queue] = approved;
+    emit QueueApprovalSet(queue, approved);
+}
+
+modifier inSolveContext(address queue) {
+    if (!approvedQueues[queue]) revert AtomicSolverV5___UnapprovedQueue(queue);
+    if (_inSolveContext != 0)   revert AtomicSolverV5___AlreadyInSolveContext();
     ...
 }
 ```
 
-**Regression test.** `test_rogueQueueWithQueueRoleStillBlocked` — grants `QUEUE_ROLE` to an attacker address, has the attacker call `finishSolve` directly, asserts revert with `NotInSolveContext`. (The `WrongQueue` check would also catch it if the attacker were able to reach the body; the `NotInSolveContext` check fires first because in the direct-call scenario there is no live solve at all. To trigger `WrongQueue` specifically would require nested solvers, which remains as a follow-up test.)
+**Why it closes the real attack.** `p2pSolve(rogueQueue, …)` now reverts at the very top of the modifier, *before* `_inSolveContext` opens, *before* any state change, *before* the callback fires. A compromised OPERATOR can still mint `QUEUE_ROLE` on any address — but cannot route the solver through that address without the owner first approving it via `setQueueApproved`. The Authority surface is now irrelevant to this attack class.
 
-**Also needed (off-chain).** Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol` — operators should not be able to grant role capabilities. This is a defense-in-depth measure at the authority layer. **Not done in this branch** — ops team decision.
+**Combined guard stack** (finishSolve now enforces four layers, in order):
+1. `_inSolveContext == 1` — a solve is live.
+2. `msg.sender == _expectedQueue` — the callback is from the queue that was used to open this solve.
+3. `initiator == address(this)` — *vestigial* in the current contract (documented as such in NatSpec). Retained as defense-in-depth against a future queue implementation that forgets to hardcode `msg.sender` as initiator.
+4. `requiresAuth` — Authority layer.
+
+Layer (3) is the original V3 check; it predates layers (1), (2), and the `approvedQueues` whitelist. With those three in place, it provides zero additional protection against any currently reachable attack.
+
+**Regression tests.**
+- `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` — a rogue `QUEUE_ROLE` holder calls `finishSolve` directly with no live solve; reverts at `NotInSolveContext`.
+- `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` — **the full CT-2/F-1 attack chain**. Deploys a `RogueQueue` mock, simulates a compromised OPERATOR that mints `QUEUE_ROLE` on it, has the attacker invoke `p2pSolve(rogueQueue, …)`. Asserts the call reverts with `UnapprovedQueue(rogueQueue)` and that victim funds / solver balance / attacker allowance are all unchanged.
+
+**Off-chain companion (commit `96fc2af`).** Removed `setRoleCapability` from `OPERATOR_ROLE`. `setUserRole` is retained (borrower onboarding needs it); the approved-queue whitelist is what makes that retention safe.
 
 ---
 
@@ -244,6 +279,7 @@ After the patches on this branch:
 ## 4. Everything currently landed on `security/atomicsolverv3-remediation`
 
 ```
+5ae4100   fix(CT-2/F-1 take 2): approvedQueues whitelist (closes the setUserRole gap)
 f3e2fd4   fix(CT-3/F-2+F-3):   validate preconditions in updateAtomicRequest
 96fc2af   fix(CT-2/F-1,F-2):   tighten OPERATOR authority + wire rescue role + check assertions
 36fabe3   chore(CT-2/F-4):     delete dormant AtomicSolverV2
