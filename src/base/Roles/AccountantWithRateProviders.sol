@@ -84,7 +84,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     //============================== ERRORS ===============================
 
     error AccountantWithRateProviders__UpperBoundTooSmall();
+    error AccountantWithRateProviders__UpperBoundTooLarge();
     error AccountantWithRateProviders__LowerBoundTooLarge();
+    error AccountantWithRateProviders__LowerBoundTooSmall();
     error AccountantWithRateProviders__ManagementFeeTooLarge();
     error AccountantWithRateProviders__Paused();
     error AccountantWithRateProviders__ZeroFeesOwed();
@@ -102,6 +104,14 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     event PayoutAddressUpdated(address oldPayout, address newPayout);
     event RateProviderUpdated(address asset, bool isPegged, address rateProvider);
     event ExchangeRateUpdated(uint96 oldRate, uint96 newRate, uint64 currentTime);
+    event ExchangeRateUpdateRejected(
+        uint96 oldRate,
+        uint96 attemptedRate,
+        uint64 currentTime,
+        bool delayViolated,
+        bool upperViolated,
+        bool lowerViolated
+    );
     event FeesClaimed(address indexed feeAsset, uint256 amount);
     event LendingRateUpdated(uint256 newRate, uint256 timestamp);
     event ManagementFeeRateUpdated(uint16 newRate, uint256 timestamp);
@@ -172,6 +182,12 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev Callable by MULTISIG_ROLE.
      */
     function pause() public requiresAuth {
+        _pause();
+    }
+
+    /// @dev Internal pause so auto-pause paths (e.g. updateExchangeRate on bound violation)
+    ///      do not require the calling role to also hold pause rights.
+    function _pause() internal {
         accountantState._isPaused = true;
         emit Paused();
     }
@@ -199,6 +215,13 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
         emit DelayInSecondsUpdated(oldDelay, _minimumUpdateDelayInSeconds);
     }
 
+    /// @notice Hard cap on how far the upper/lower bound can deviate from BASIS_POINTS.
+    /// @dev 10% per single update is already 33× what production uses (typical config is 10030 = 0.3%).
+    ///      Hard-cap at 11000 / 9000 so a compromised-owner mistake can never authorize the
+    ///      unbounded 6.55× drift the prior `uint16` ceiling allowed (audit finding A-4).
+    uint16 internal constant MAX_UPPER_BOUND = 11_000; // +10%
+    uint16 internal constant MIN_LOWER_BOUND = 9000; // -10%
+
     /**
      * @notice Update the allowed upper bound change of exchange rate between `updateExchangeRateCalls`.
      * @dev Callable by OWNER_ROLE.
@@ -208,6 +231,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
             revert AccountantWithRateProviders__UpperMustExceedLower();
         }
         if (_allowedExchangeRateChangeUpper < BASIS_POINTS) revert AccountantWithRateProviders__UpperBoundTooSmall();
+        if (_allowedExchangeRateChangeUpper > MAX_UPPER_BOUND) {
+            revert AccountantWithRateProviders__UpperBoundTooLarge();
+        }
         uint16 oldBound = accountantState._allowedExchangeRateChangeUpper;
         accountantState._allowedExchangeRateChangeUpper = _allowedExchangeRateChangeUpper;
         emit UpperBoundUpdated(oldBound, _allowedExchangeRateChangeUpper);
@@ -222,6 +248,9 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
             revert AccountantWithRateProviders__UpperMustExceedLower();
         }
         if (_allowedExchangeRateChangeLower > BASIS_POINTS) revert AccountantWithRateProviders__LowerBoundTooLarge();
+        if (_allowedExchangeRateChangeLower < MIN_LOWER_BOUND) {
+            revert AccountantWithRateProviders__LowerBoundTooSmall();
+        }
         uint16 oldBound = accountantState._allowedExchangeRateChangeLower;
         accountantState._allowedExchangeRateChangeLower = _allowedExchangeRateChangeLower;
         emit LowerBoundUpdated(oldBound, _allowedExchangeRateChangeLower);
@@ -264,24 +293,31 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
 
         uint64 currentTime = uint64(block.timestamp);
         (uint96 currentRateWithInterest,) = calculateExchangeRateWithInterest();
-
         uint96 oldExchangeRate = state._exchangeRate;
 
-        _checkpointInterestAndFees();
+        bool delayViolated = currentTime < state._lastUpdateTimestamp + state._minimumUpdateDelayInSeconds;
+        bool upperViolated = _newExchangeRate
+            > uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeUpper, BASIS_POINTS);
+        bool lowerViolated = _newExchangeRate
+            < uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeLower, BASIS_POINTS);
 
-        uint256 currentTotalShares = vault.totalSupply();
-
-        if (
-            currentTime < state._lastUpdateTimestamp + state._minimumUpdateDelayInSeconds
-                || _newExchangeRate
-                    > uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeUpper, BASIS_POINTS)
-                || _newExchangeRate
-                    < uint256(currentRateWithInterest).mulDivDown(state._allowedExchangeRateChangeLower, BASIS_POINTS)
-        ) {
-            pause();
+        if (delayViolated || upperViolated || lowerViolated) {
+            // Reject and pause WITHOUT committing the invalid rate. Previously the bad
+            // rate was written to storage alongside the pause, so governance unpausing
+            // later would silently accept the attacker's value (audit A-1).
+            _pause();
+            emit ExchangeRateUpdateRejected(
+                oldExchangeRate, _newExchangeRate, currentTime, delayViolated, upperViolated, lowerViolated
+            );
+            return;
         }
 
-        // Always update the rate and timestamp
+        // Only checkpoint + commit when the update is accepted. Moving the checkpoint
+        // below the bound check stops rejected updates from advancing `_lastAccrualTime`
+        // and silently eating interest (audit A-1 / cross-contract invariant #6).
+        _checkpointInterestAndFees();
+        uint256 currentTotalShares = vault.totalSupply();
+
         state._exchangeRate = _newExchangeRate;
         state._totalSharesLastUpdate = uint128(currentTotalShares);
         state._lastUpdateTimestamp = currentTime;
