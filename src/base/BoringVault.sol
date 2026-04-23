@@ -26,6 +26,10 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
      */
     BeforeTransferHook public hook;
 
+    //============================== ERRORS ===============================
+
+    error BoringVault__AssetNotContract(address asset);
+
     //============================== EVENTS ===============================
 
     event Enter(address indexed from, address indexed asset, uint256 amount, address indexed to, uint256 shares);
@@ -99,7 +103,15 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
         requiresAuth
     {
         // Transfer assets in
-        if (assetAmount > 0) asset.safeTransferFrom(from, address(this), assetAmount);
+        if (assetAmount > 0) {
+            // Audit N-4 (Spearbit 3.1.7 class): solmate SafeTransferLib does not verify that
+            // the target is a deployed contract — calls to EOAs or self-destructed contracts
+            // silently return success. Without this guard a misconfigured asset (e.g. a typo
+            // that points at `address(0)` or a non-existent CREATE2 deploy) would let the
+            // vault mint shares while pulling nothing. Fail closed on non-contract assets.
+            if (address(asset).code.length == 0) revert BoringVault__AssetNotContract(address(asset));
+            asset.safeTransferFrom(from, address(this), assetAmount);
+        }
 
         // Mint shares.
         _mint(to, shareAmount);

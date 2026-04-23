@@ -60,6 +60,17 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     bool public isPaused;
 
     /**
+     * @notice Separate pause for INBOUND cross-chain receives. Audit N-2 (Pashov HL M-01
+     *         parallel class): a source-chain user burns shares to bridge, but if
+     *         destination teller is paused when the relayer delivers, `_beforeReceive`
+     *         reverts and funds are permanently lost (bridge relayers do not retry
+     *         indefinitely). Decouple: regular `pause()` halts new DEPOSITS only; receives
+     *         continue to deliver. Admin can explicitly `pauseReceive()` if they want to
+     *         halt inbound too. Default false (open).
+     */
+    bool public isReceivePaused;
+
+    /**
      * @dev Maps deposit nonce to keccak256(address receiver, address _depositAsset, uint256 _depositAmount, uint256
      * _shareAmount, uint256 _timestamp, uint256 _shareLockPeriod).
      */
@@ -117,6 +128,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     error TellerWithMultiAssetSupport__PermitFailedAndAllowanceTooLow();
     error TellerWithMultiAssetSupport__ZeroShares();
     error TellerWithMultiAssetSupport__Paused();
+    error TellerWithMultiAssetSupport__ReceivePaused();
     error TellerWithMultiAssetSupport__KeyringCredentialInvalid();
     error TellerWithMultiAssetSupport__KeyringNotConfigured();
     error TellerWithMultiAssetSupport__NotWhitelisted();
@@ -125,6 +137,8 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
     event Paused();
     event Unpaused();
+    event ReceivePaused();
+    event ReceiveUnpaused();
     event AssetAdded(address indexed asset);
     event AssetRemoved(address indexed asset);
     event Deposit(
@@ -216,6 +230,18 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     function unpause() external requiresAuth {
         isPaused = false;
         emit Unpaused();
+    }
+
+    /// @notice Pause inbound cross-chain receives. Audit N-2.
+    function pauseReceive() external requiresAuth {
+        isReceivePaused = true;
+        emit ReceivePaused();
+    }
+
+    /// @notice Unpause inbound cross-chain receives. Audit N-2.
+    function unpauseReceive() external requiresAuth {
+        isReceivePaused = false;
+        emit ReceiveUnpaused();
     }
 
     /**

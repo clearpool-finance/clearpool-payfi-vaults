@@ -4,6 +4,8 @@ pragma solidity 0.8.22;
 import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
+import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
+import { ManagerWithMerkleVerification } from "src/base/Roles/ManagerWithMerkleVerification.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { BaseScript } from "./Base.s.sol";
@@ -117,14 +119,36 @@ contract CheckAuthConfiguration is BaseScript {
         );
 
         // === STRUCTURAL SANITY ===
-        // Ownership should be on the protocolAdmin multisig, not the deployer EOA.
+        // Audit R-4: assert ownership of EVERY core contract has been transferred to the
+        // protocolAdmin multisig. Solmate `Auth.transferOwnership` is single-step, so a
+        // typo in `08_SetAuthorityAndTransferOwnerships.s.sol` could brick a contract with
+        // the deployer EOA as owner. These checks run post-deploy and fail the pipeline if
+        // any single transferOwnership was missed or typoed.
         require(
             RolesAuthority(config.rolesAuthority).owner() == config.protocolAdmin,
             "CheckAuth: authority owner must equal protocolAdmin"
         );
+        require(
+            BoringVault(payable(config.boringVault)).owner() == config.protocolAdmin,
+            "CheckAuth: boringVault owner must equal protocolAdmin"
+        );
+        require(
+            AccountantWithRateProviders(config.accountant).owner() == config.protocolAdmin,
+            "CheckAuth: accountant owner must equal protocolAdmin"
+        );
+        require(
+            ManagerWithMerkleVerification(config.manager).owner() == config.protocolAdmin,
+            "CheckAuth: manager owner must equal protocolAdmin"
+        );
+        require(
+            TellerWithMultiAssetSupport(config.teller).owner() == config.protocolAdmin,
+            "CheckAuth: teller owner must equal protocolAdmin"
+        );
+        require(
+            AtomicQueue(config.atomicQueue).owner() == config.protocolAdmin,
+            "CheckAuth: atomicQueue owner must equal protocolAdmin"
+        );
         // AtomicSolverV5 ownership: rescue() falls back to `owner()` if no role is wired.
-        // Until setOwner(protocolAdmin) has been run, only the deployer EOA can rescue.
-        // See RT-2 / F-2 in docs/ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md.
         require(
             AtomicSolverV5(config.atomicSolver).owner() == config.protocolAdmin,
             "CheckAuth: atomicSolver owner must equal protocolAdmin"

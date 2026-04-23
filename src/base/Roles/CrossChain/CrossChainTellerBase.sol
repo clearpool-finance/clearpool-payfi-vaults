@@ -129,10 +129,16 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
     }
 
     /**
-     * @notice a before receive hook to call some logic before a receive is processed
+     * @notice Hook invoked by each bridge variant's receive handler.
+     * @dev Audit N-2 (Pashov HL M-01 parallel class): inbound receive is governed by
+     *      `isReceivePaused`, NOT the general `isPaused` used for outbound deposits.
+     *      A source user has already burned shares by the time the relayer delivers;
+     *      blocking receive with the deposit-pause would permanently lose those shares
+     *      (bridge relayers do not retry indefinitely). Admin can still halt receive
+     *      explicitly via `pauseReceive()` if needed.
      */
     function _beforeReceive() internal virtual {
-        if (isPaused) revert TellerWithMultiAssetSupport__Paused();
+        if (isReceivePaused) revert TellerWithMultiAssetSupport__ReceivePaused();
     }
 
     /**
