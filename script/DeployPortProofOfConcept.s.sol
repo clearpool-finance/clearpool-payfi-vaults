@@ -17,11 +17,12 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
-    uint8 public constant ADMIN_ROLE = 1;
-    uint8 public constant MANAGER_ROLE = 2;
-    uint8 public constant MINTER_ROLE = 7;
-    uint8 public constant BURNER_ROLE = 8;
-    uint8 public constant SOLVER_ROLE = 9;
+    // Audit D-1: shift local-only roles above Constants.sol's reserved 1–7 range.
+    uint8 public constant MANAGER_ROLE = 2; // matches Constants.MANAGER_ROLE
+    uint8 public constant ADMIN_ROLE = 12;
+    uint8 public constant MINTER_ROLE = 13;
+    uint8 public constant BURNER_ROLE = 14;
+    uint8 public constant SOLVER_ROLE = 15;
     uint8 public constant QUEUE_ROLE = 10;
     uint8 public constant CAN_SOLVE_ROLE = 11;
 

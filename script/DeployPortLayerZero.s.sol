@@ -10,15 +10,21 @@ import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import {
     MultiChainLayerZeroTellerWithMultiAssetSupport
 } from "src/base/Roles/CrossChain/MultiChainLayerZeroTellerWithMultiAssetSupport.sol";
+import { CrossChainTellerBase } from "src/base/Roles/CrossChain/CrossChainTellerBase.sol";
 import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";
 
 contract DeployPortLayerZeroScript is Script, MainnetAddresses {
     // Roles
-    uint8 public constant ADMIN_ROLE = 1;
-    uint8 public constant MINTER_ROLE = 7;
-    uint8 public constant BURNER_ROLE = 8;
-    uint8 public constant MANAGER_ROLE = 2;
-    uint8 public constant SOLVER_ROLE = 9;
+    // Audit D-1: the previous MINTER_ROLE=7 collided with Constants.sol's OPERATOR_ROLE=7.
+    // If this test scaffold ever shared a RolesAuthority with production wiring, granting
+    // MINTER_ROLE to the teller would also grant OPERATOR_ROLE — reaching setUserRole on
+    // the authority itself. Shift all local-only roles above Constants.sol's reserved
+    // range (1–7) to remove the collision class.
+    uint8 public constant MANAGER_ROLE = 2; // matches Constants.MANAGER_ROLE
+    uint8 public constant ADMIN_ROLE = 12;
+    uint8 public constant MINTER_ROLE = 13;
+    uint8 public constant BURNER_ROLE = 14;
+    uint8 public constant SOLVER_ROLE = 15;
     uint8 public constant QUEUE_ROLE = 10;
     uint8 public constant CAN_SOLVE_ROLE = 11;
 
@@ -175,13 +181,16 @@ contract DeployPortLayerZeroScript is Script, MainnetAddresses {
         authority.setPublicCapability(teller, TellerWithMultiAssetSupport.deposit.selector, true);
         authority.setPublicCapability(teller, TellerWithMultiAssetSupport.depositWithPermit.selector, true);
 
-        // Cross-chain capabilities - using the actual function selector
-        // The selector 0xa69559d1 is what's being called according to the error trace
-        bytes4 bridgeSelector = 0xa69559d1;
-        authority.setPublicCapability(teller, bridgeSelector, true);
+        // Audit D-6: use the named selector instead of a hardcoded hex value. Previously
+        // the selector was written as `bytes4 bridgeSelector = 0xa69559d1;` with a comment
+        // noting "what's being called according to the error trace" — a future ABI change
+        // would silently redirect the public capability to a different function.
+        authority.setPublicCapability(teller, CrossChainTellerBase.bridge.selector, true);
 
-        // AtomicQueue public capabilities
-        authority.setPublicCapability(atomicQueue, AtomicQueue.updateAtomicRequest.selector, true);
+        // Audit D-7: removed the no-op `setPublicCapability(atomicQueue, updateAtomicRequest.selector)`.
+        // `updateAtomicRequest` is not `requiresAuth`, so this call had no effect anyway,
+        // but reintroducing auth on the function in a future refactor would combine with
+        // this line to recreate the public-by-default footgun.
     }
 
     function _configureCrossChain() internal {

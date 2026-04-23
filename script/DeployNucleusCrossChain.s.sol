@@ -21,11 +21,12 @@ contract DeployNucleusCrossChain is Script {
     using FixedPointMathLib for uint256;
 
     // Role definitions
-    uint8 public constant ADMIN_ROLE = 1;
-    uint8 public constant MANAGER_ROLE = 2;
-    uint8 public constant MINTER_ROLE = 7;
-    uint8 public constant BURNER_ROLE = 8;
-    uint8 public constant SOLVER_ROLE = 9;
+    // Audit D-1: shift local-only roles above Constants.sol's reserved 1–7 range.
+    uint8 public constant MANAGER_ROLE = 2; // matches Constants.MANAGER_ROLE
+    uint8 public constant ADMIN_ROLE = 12;
+    uint8 public constant MINTER_ROLE = 13;
+    uint8 public constant BURNER_ROLE = 14;
+    uint8 public constant SOLVER_ROLE = 15;
     uint8 public constant QUEUE_ROLE = 10;
     uint8 public constant CAN_SOLVE_ROLE = 11;
 
@@ -284,7 +285,10 @@ contract DeployNucleusCrossChain is Script {
         l1Authority.setUserRole(address(l1AtomicSolver), SOLVER_ROLE, true);
         l1Authority.setUserRole(address(l1AtomicQueue), QUEUE_ROLE, true);
         l1Authority.setUserRole(solver, CAN_SOLVE_ROLE, true);
-        l1Authority.setUserRole(exchangeRateBot, ADMIN_ROLE, true);
+        // Audit D-3: removed `setUserRole(exchangeRateBot, ADMIN_ROLE)`. ADMIN_ROLE never
+        // has any capability wired in this file, so the grant was dead — but it would have
+        // been a copy-paste bomb if a future edit added one. If the bot needs UPDATE_EXCHANGE_RATE
+        // capabilities, wire those through UPDATE_EXCHANGE_RATE_ROLE explicitly.
     }
 
     function _setupL2Permissions() internal {
@@ -319,7 +323,7 @@ contract DeployNucleusCrossChain is Script {
         l2Authority.setUserRole(address(l2AtomicSolver), SOLVER_ROLE, true);
         l2Authority.setUserRole(address(l2AtomicQueue), QUEUE_ROLE, true);
         l2Authority.setUserRole(solver, CAN_SOLVE_ROLE, true);
-        l2Authority.setUserRole(exchangeRateBot, ADMIN_ROLE, true);
+        // Audit D-3: removed dead `setUserRole(exchangeRateBot, ADMIN_ROLE)` — see L1 note.
     }
 
     function _addL1Assets() internal {
