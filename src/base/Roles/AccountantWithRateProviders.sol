@@ -88,6 +88,8 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     error AccountantWithRateProviders__LowerBoundTooLarge();
     error AccountantWithRateProviders__LowerBoundTooSmall();
     error AccountantWithRateProviders__ManagementFeeTooLarge();
+    error AccountantWithRateProviders__RateProviderZeroRate();
+    error AccountantWithRateProviders__RateProviderDeviationTooHigh(uint256 oldRate, uint256 newRate);
     error AccountantWithRateProviders__Paused();
     error AccountantWithRateProviders__ZeroFeesOwed();
     error AccountantWithRateProviders__OnlyCallableByBoringVault();
@@ -273,7 +275,34 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
      * @dev The rate should represent how much base value 1 unit of asset is worth
      * @dev Callable by OWNER_ROLE.
      */
+    /// @notice Maximum deviation (basis points) allowed when REPLACING an existing
+    ///         rate provider for an asset. Prevents a compromised owner from atomically
+    ///         swapping to an inflated-rate provider mid-tx (audit A-3).
+    uint256 internal constant RATE_PROVIDER_MAX_DEVIATION_BPS = 500; // 5%
+
     function setRateProviderData(ERC20 _asset, bool _isPeggedToBase, address _rateProvider) external requiresAuth {
+        RateProviderData memory prior = rateProviderData[_asset];
+
+        // Audit A-3: sanity-probe the NEW non-pegged rate provider and — if replacing an
+        // existing non-pegged provider for this asset — require the new rate is within
+        // RATE_PROVIDER_MAX_DEVIATION_BPS of the old. This is a lightweight alternative
+        // to a full timelock (tracked as follow-up in SYSTEM_AUDIT.md).
+        // First-time registrations and pegged assets skip the deviation check.
+        if (!_isPeggedToBase && _rateProvider != address(0)) {
+            uint256 newRate = IRateProvider(_rateProvider).getRate();
+            if (newRate == 0) revert AccountantWithRateProviders__RateProviderZeroRate();
+
+            if (!prior.isPeggedToBase && address(prior.rateProvider) != address(0)) {
+                uint256 oldRate = prior.rateProvider.getRate();
+                if (oldRate != 0) {
+                    uint256 diff = newRate > oldRate ? newRate - oldRate : oldRate - newRate;
+                    if (diff.mulDivDown(BASIS_POINTS, oldRate) > RATE_PROVIDER_MAX_DEVIATION_BPS) {
+                        revert AccountantWithRateProviders__RateProviderDeviationTooHigh(oldRate, newRate);
+                    }
+                }
+            }
+        }
+
         rateProviderData[_asset] =
             RateProviderData({ isPeggedToBase: _isPeggedToBase, rateProvider: IRateProvider(_rateProvider) });
         emit RateProviderUpdated(address(_asset), _isPeggedToBase, _rateProvider);
