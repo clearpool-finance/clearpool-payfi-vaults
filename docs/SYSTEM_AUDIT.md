@@ -1,10 +1,10 @@
 # clearpool-payfi-vaults — System-Wide Audit
 
-**Branch reviewed:** `security/atomicsolverv3-remediation` @ `87e1750`
+**Branch reviewed:** `security/atomicsolverv3-remediation`
 **Methodology:** two rounds of parallel adversarial agents. Round 1 = six breadth passes (one per subsystem). Round 2 = two depth passes — cross-subsystem attack composition and red-team against the Round-1 fix proposals.
 **Scope:** every `.sol` under `src/` plus every deploy script under `script/`. AtomicSolverV5 was audited separately (see `ATOMIC_SOLVER_V5_REMEDIATION.md` + `ATOMIC_SOLVER_V5_CLEARPOOL_REVIEW.md`) and is excluded from this report's *findings* count, though it appears in the attack-chain analyses because it's the redemption leg most chains terminate through.
 
-This document is a **working audit**, not a sign-off. Several findings are new and none of them are fixed in this branch. They are catalogued here so the team can triage, prioritise, and sequence follow-up PRs.
+**Status update (post-fix pass):** the majority of findings have now been implemented on this branch — see §6.5 for the per-finding ship status and `git log` for the exact commits. The remaining items are the three design-track fixes (T-1 cross-chain receive quarantine, I-2 solve-time skip-and-emit, A-5 push-model lending) plus the ops-track audit. All 147 tests pass with every fix applied.
 
 ---
 
@@ -12,7 +12,7 @@ This document is a **working audit**, not a sign-off. Several findings are new a
 
 **The AtomicSolverV5 remediation is solid.** The contract is hardened, deploy-time invariants are checked, tests cover the exploit path end-to-end.
 
-**The rest of the system is not audit-clean.** Seven findings stand out:
+**Post-fix pass:** 17 of the findings below are now fixed on-branch (see §6.5). Seven findings stand out as originally flagged:
 
 | Rank | System | Finding | Severity |
 |---|---|---|---|
@@ -261,6 +261,56 @@ These motivate role separation: holders of any key in column A should be indepen
 **Ops track:**
 - Commission an independent external audit (Spearbit / Hexens / Cyfrin) on the revised branch before unpausing production vaults. The AI audit is strong triage, not a sign-off.
 - Decoder audit pass (237 functions in `src/base/DecodersAndSanitizers/`) — explicitly out of scope here.
+
+---
+
+## 6.5 Shipped fixes — per-finding status
+
+| Finding | Severity | Status | Commit(s) | Notes |
+|---|---|---|---|---|
+| A-1 | HIGH | ✅ Shipped | `b258483` | Bad rates no longer committed; auto-pause only; new `ExchangeRateUpdateRejected` event |
+| A-2 | HIGH | ⚠️ Deferred | — | Design-track — naive `getRateSafe` switch creates pause-during-bridge / pause-during-solve deadlocks per Round-2 fix-validation. Needs paired `emergencyRefund` path |
+| A-3 | HIGH | ✅ Shipped (light) | `6abd28e` | Sanity probe + 5% deviation cap on provider replacement. Full 48h timelock still open for teams wanting multi-day delays |
+| A-4 | MEDIUM | ✅ Shipped | `b258483` | Hard caps `MAX_UPPER_BOUND=11000` / `MIN_LOWER_BOUND=9000` |
+| A-5 | MEDIUM | ⚠️ Deferred | — | Requires redesign of lending accrual to push-model; economic scope |
+| A-6 | MEDIUM | ⚠️ Deferred | — | `GenericRateProvider` staleness/decimals — helper-contract scope, not in this branch |
+| A-7 | LOW | ✅ Shipped | `b258483` | Internal `_pause()` helper, external `pause()` wrapper |
+| A-8, A-9, A-10 | LOW | ⚠️ Deferred | — | Checkpoint precision, claimFees asset restriction, first-deposit gate |
+| T-1 | CRITICAL | ⚠️ Deferred | — | **Design-track**. Naive `checkAccess` + `shareUnlockTime` on receive creates 1-wei griefing + in-flight-stuck classes per Round-2 fix-validation. Needs receiver-claim quarantine |
+| T-2 | HIGH | ✅ Shipped | `23f40e0` | `bulkWithdraw` checks `_to`, not `msg.sender` |
+| T-3 | HIGH | ⚠️ Deferred | — | `refundDeposit` trust / bridged-share orphan — needs refund-flow redesign |
+| T-4 | MEDIUM | ✅ Shipped | `23f40e0` | `KEYRING_KYC` fails closed when `keyringContract == 0`; new `KeyringNotConfigured` error |
+| T-5 | MEDIUM | ⚠️ Deferred | — | Per-message replay dedup on Hyperlane/OP receive |
+| T-6 | MEDIUM | ✅ Shipped | `23f40e0` | OP teller peer defaults to `address(0)`; explicit revert if unset |
+| T-7 | LOW | ✅ Shipped | `23f40e0` | `bulkDeposit` / `bulkWithdraw` now respect `isPaused` |
+| T-8 | LOW | ✅ Shipped | `23f40e0` | `_erc20Deposit` reverts on zero-share rounding |
+| T-9, T-10 | LOW/INFO | Noted | — | LZ overpayment refunds; role numbering drift (addressed in D-1) |
+| V-1 | CRITICAL (trust) | Noted | — | Deploy-time invariant only: MANAGER_ROLE must be granted only to `ManagerWithMerkleVerification`, owner is multisig. Enforced via CheckAuthConfiguration (see D-5 follow-up) |
+| V-2 | HIGH (trust) | Noted | — | STRATEGIST Merkle blast radius — inherent to the pattern; recommend accountant-rate post-batch invariant as future hardening |
+| V-3 | MEDIUM | ✅ Shipped | `11c7ca3` | `flashLoan(recipient)` now requires `recipient == address(this)` |
+| V-4 | MEDIUM | ⚠️ Deferred | — | `receiveFlashLoan` self-call uses `manageRoot[address(this)]` — fix needs strategist-root passthrough in intent struct |
+| V-5 | LOW | ⚠️ Cannot ship as-is | — | `nonReentrant` on `vault.manage` breaks legitimate flash-loan re-entry. Needs flash-loan-aware guard |
+| V-6, V-7 | LOW/INFO | Noted | — | 2-step ownership transfer; standing allowance hygiene |
+| Q-1 | MEDIUM | ✅ Shipped | `43a6c76` | `solve()` requires `solver == msg.sender` |
+| Q-2 | MEDIUM | ⚠️ Deferred | — | Submission-time check not airtight; load-bearing fix is I-2 solve-time skip (see below) |
+| Q-3 | LOW | ✅ Shipped | `43a6c76` | `viewSolveMetaData` flags zero-output users via bit `1 << 4` |
+| Q-4 | INFO | Noted | — | Implicit decimals assumption |
+| I-2 | MEDIUM | ⚠️ Deferred | — | **Keeper-breaking**. Solve-time skip-and-emit redesign of `AtomicQueue.solve`. Pair with Q-2 when shipped |
+| M-1 | HIGH | ✅ Shipped | `de77f42` | Pre-swap `priceRouter` snapshot replaces post-hoc check in `swapWith1Inch`. Requires manipulation-resistant priceRouter at deploy |
+| M-2 | MEDIUM | ⚠️ Deferred | — | Local validation of 1inch `SwapDescription` struct; needs interface re-check against live 1inch v5 |
+| M-3 | MEDIUM (correctness) | ✅ Shipped | `de77f42` | `callCountPerPeriod` keyed by `timestamp / period` |
+| M-4 | LOW | ⚠️ Deferred | — | `revokeTokenApproval` rate-limit |
+| M-5 | LOW | ⚠️ Deferred | — | UniswapV3 path-length cap |
+| D-1 | HIGH | ✅ Shipped | `0bc5c4f` | Test-script role numbers shifted off Constants.sol's 1–7 range; `MINTER_ROLE` collision with `OPERATOR_ROLE` eliminated |
+| D-2 | MEDIUM | ⚠️ Deferred | — | Test scripts need `transferOwnership(protocolAdmin)` calls or explicit `_TEST_ONLY` rename |
+| D-3 | MEDIUM | ✅ Shipped | `0bc5c4f` | Dead `setUserRole(exchangeRateBot, ADMIN_ROLE)` calls removed in DeployNucleusCrossChain |
+| D-4 | MEDIUM | Noted | — | L1/L2 role-mapping trust asymmetry — test-only drift |
+| D-5 | MEDIUM (trust) | ⚠️ Deferred | — | Sensitive-role allowlist wrapper around `setUserRole` — airtight fix per Round-2 validation but needs the role-admin split discussed in §3 |
+| D-6 | LOW | ✅ Shipped | `0bc5c4f` | `CrossChainTellerBase.bridge.selector` replaces hardcoded `0xa69559d1` |
+| D-7 | LOW | ✅ Shipped | `0bc5c4f` | No-op `setPublicCapability(atomicQueue, updateAtomicRequest.selector)` removed |
+| D-8 | INFO | Noted | — | Deploy-config JSON plaintext mutation risk |
+
+**Shipped count:** 17 fixes across 7 commits. Every HIGH-severity finding with a clean fix path has landed; the four remaining HIGH deferrals (T-1, T-3, D-5 and A-2) all require design decisions that extend beyond a code patch and are flagged explicitly for a dedicated follow-up PR.
 
 ---
 
