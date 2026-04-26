@@ -11,7 +11,7 @@ import { BalancerVault } from "src/interfaces/BalancerVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
-import { AtomicSolver } from "src/atomic-queue/AtomicSolver.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 import { IWEETH } from "src/interfaces/IStaking.sol";
 import { ILiquidityPool } from "src/interfaces/IStaking.sol";
@@ -35,7 +35,7 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
     TellerWithMultiAssetSupport public teller;
     AccountantWithRateProviders public accountant;
     AtomicQueue public atomic_queue;
-    AtomicSolver public atomic_solver;
+    AtomicSolverV5 public atomic_solver;
     address public rawDataDecoderAndSanitizer;
     CellarMigrationAdaptor public migrationAdaptor;
     EtherFiLiquid1 public etherFiLiquid1;
@@ -102,8 +102,10 @@ contract EtherFiLiquid1MigrationTest is Test, MainnetAddresses {
         ytRateProvider =
             new GenericRateProvider(liquidV1PriceRouter, selector, yt, bytes32(amount), quote, 0, 0, 0, 0, 0);
 
-        // Deploy queue.
-        atomic_solver = new AtomicSolver(address(this), vault);
+        // Deploy queue + solver. V5 is the production solver; V1 was the legacy
+        // arbitrary-call variant (deleted alongside this commit) and was retained
+        // here only as test set-dressing.
+        atomic_solver = new AtomicSolverV5(address(this), Authority(address(0)));
         atomic_queue = new AtomicQueue(address(accountant), address(this), rolesAuthority);
 
         rolesAuthority = new RolesAuthority(address(this), Authority(address(0)));

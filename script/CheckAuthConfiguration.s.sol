@@ -153,6 +153,13 @@ contract CheckAuthConfiguration is BaseScript {
             AtomicSolverV5(config.atomicSolver).owner() == config.protocolAdmin,
             "CheckAuth: atomicSolver owner must equal protocolAdmin"
         );
+        // The CT-2/F-1 fix relies on AtomicSolverV5's in-contract approvedQueues whitelist.
+        // If ConfigureAtomicRoles is skipped or fails to call setQueueApproved, every solve
+        // will silently revert with UnapprovedQueue in production. Gate at deploy-time.
+        require(
+            AtomicSolverV5(config.atomicSolver).approvedQueues(config.atomicQueue),
+            "CheckAuth: atomicQueue must be whitelisted on atomicSolver (setQueueApproved)"
+        );
         // OPERATOR_ROLE must be able to call rescue() — otherwise stuck tokens
         // can only be swept by the (potentially rotated / lost) deployer EOA.
         require(

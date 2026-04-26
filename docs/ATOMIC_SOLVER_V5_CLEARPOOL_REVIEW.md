@@ -17,7 +17,7 @@
   - Regressions: `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` (direct call) and `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` (full exploit reproduction through `p2pSolve` → `RogueQueue.solve` → `finishSolve`).
 - **One defense-in-depth hardening** (CT-1 / approval-before-transfer ordering) implemented in `fec065a`.
 - **Operational finding CT-2/F-2** (`rescue()` only callable by deployer EOA) fixed in `96fc2af`: `OPERATOR_ROLE` now holds `rescue.selector` and `CheckAuthConfiguration` asserts ownership is on `protocolAdmin`.
-- **Dormant legacy V2 solver deleted** (`36fabe3`). V1 retained only because `EtherFiLiquid1Migration.t.sol` still imports it.
+- **Dormant legacy V2 solver deleted** (`36fabe3`). **V1 also deleted** in the Rafal-follow-up commit; the migration test was migrated to construct `AtomicSolverV5` instead (the production solver).
 - **Queue-side griefing finding CT-3/F-2+F-3** partially fixed at submission time (`f3e2fd4`): `updateAtomicRequest` now rejects past deadlines, insufficient balance, insufficient allowance. The full fix (batch-failure isolation I-2) requires changing `AtomicQueue.solve` semantics — keeper-breaking — and remains a follow-up.
 - **CT-3/F-1 rate-sandwich griefing** remains a follow-up (`minSolverProfit` param) because it changes the solver selector and needs keeper coordination.
 
@@ -131,13 +131,13 @@ Layer (3) is the original V3 check; it predates layers (1), (2), and the `approv
 ---
 
 ### [CT-2 / F-4] — LOW — `AtomicSolverV2.sol` dormant but compiled
-**Status:** ✅ V2 deleted in commit `36fabe3`. V1 retained — see note.
+**Status:** ✅ V2 deleted (`36fabe3`). ✅ V1 deleted in the Rafal follow-up commit; migration test re-pointed at `AtomicSolverV5`.
 
 **Finding.** `AtomicSolverV2.sol` had the **identical** C-1 vulnerability shape as pre-fix V3. `AtomicSolver.sol` (V1) has a *more severe* pattern — it executes arbitrary `target.functionCallWithValue(data, value)` with caller-supplied `targets`/`ammo` arrays, gated only by a custom `approvedToCallFinishSolve` mapping (not the Auth framework).
 
 **Shipped.** `AtomicSolverV2.sol` deleted — zero references anywhere in the repo (verified by `grep -r AtomicSolverV2 script/ test/`).
 
-**V1 retained for now.** `test/EtherFiLiquid1Migration.t.sol:14` still imports `AtomicSolver`. The test validates a legacy migration flow; deleting V1 would require also deleting or rewriting that test. Tracked for cleanup when the migration path is retired.
+**V1 deleted.** Inspection showed the migration test only constructs `AtomicSolver` and never invokes any of its vulnerable surfaces (`finishSolve`, `doStuff`, `receiveFlashLoan`); it was test set-dressing, not under test. The test was repointed at `AtomicSolverV5` (the production solver, with the same `IAtomicSolver` interface) and `src/atomic-queue/AtomicSolver.sol` was removed. Trail of Bits "Maturing your smart contracts beyond private key risk" (June 2025) and the broader Spearbit / Cyfrin convention treat dormant code with critical-grade attack surfaces as audit-track footguns regardless of whether they're deployed — this closes the case.
 
 ---
 
@@ -317,7 +317,7 @@ Commits `bfdcff0` and `9a97f84` are retained for audit trail but their effective
 | 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` (CT-2 F-1 off-chain arm). | `96fc2af` |
 | 2 | `CheckAuthConfiguration`: `AtomicSolverV5.owner() == protocolAdmin`, operator can `rescue`, operator cannot `setRoleCapability`. | `96fc2af` |
 | 3 | Wire `OPERATOR_ROLE` to `rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
-| 4 | Delete `AtomicSolverV2.sol`. V1 retained (legacy migration test). | `36fabe3` |
+| 4 | Delete `AtomicSolverV2.sol` (V2 in `36fabe3`); delete `AtomicSolver.sol` (V1 in Rafal follow-up); migration test repointed at `AtomicSolverV5`. | `36fabe3` + Rafal follow-up |
 | 6 | Validate `updateAtomicRequest` (deadline, balance, allowance). | `f3e2fd4` |
 
 **Deliberately kept out** (each merits its own PR):

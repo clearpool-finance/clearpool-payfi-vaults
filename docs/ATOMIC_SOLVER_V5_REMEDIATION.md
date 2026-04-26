@@ -373,7 +373,7 @@ Commits `bfdcff0` / `9a97f84` are retained for audit trail; their effective diff
 | 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol`. | `96fc2af` |
 | 2 | Add `CheckAuthConfiguration` assertions: solver `owner() == protocolAdmin`, operator can call `rescue`, operator CANNOT `setRoleCapability`. | `96fc2af` |
 | 3 | Wire `OPERATOR_ROLE` to `AtomicSolverV5.rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
-| 4 | Delete `src/atomic-queue/AtomicSolverV2.sol` (zero deploy references). `AtomicSolver.sol` (V1) kept because `test/EtherFiLiquid1Migration.t.sol` still imports it for legacy-path testing; track V1 deletion with that test's eventual retirement. | `36fabe3` |
+| 4 | Delete `AtomicSolverV2.sol` (zero deploy references) — `36fabe3`. Delete `AtomicSolver.sol` (V1) — Rafal follow-up commit; the `EtherFiLiquid1Migration` test only constructed V1 as set-dressing (never invoked any vulnerable surface) and was repointed at `AtomicSolverV5`. | shipped |
 | 6 | Validate `updateAtomicRequest` preconditions (deadline, balance, allowance) in `AtomicQueue`. | `f3e2fd4` |
 
 **Deliberately kept out** (breaking-API or cross-cutting; each merits its own PR):
