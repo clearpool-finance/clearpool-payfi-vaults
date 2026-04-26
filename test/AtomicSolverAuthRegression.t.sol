@@ -150,12 +150,7 @@ contract AtomicSolverAuthRegression is Test {
 
         // Attacker passes runData with solver=victim (who has an approval to AtomicSolverV3),
         // and `initiator = address(solver)` to bypass the parameter-based check.
-        bytes memory runData = abi.encode(
-            AtomicSolverV3.SolveType.P2P,
-            victim,
-            uint256(0),
-            type(uint256).max
-        );
+        bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, victim, uint256(0), type(uint256).max);
 
         vm.prank(attacker);
         solver.finishSolve(
@@ -171,9 +166,7 @@ contract AtomicSolverAuthRegression is Test {
         assertEq(want.balanceOf(victim), before - amount, "victim drained via broken wiring");
         assertEq(want.balanceOf(address(solver)), amount, "solver now holds victim's funds");
         assertEq(
-            want.allowance(address(solver), attacker),
-            amount,
-            "attacker now has allowance to transferFrom the solver"
+            want.allowance(address(solver), attacker), amount, "attacker now has allowance to transferFrom the solver"
         );
     }
 }
