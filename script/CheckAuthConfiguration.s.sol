@@ -65,6 +65,14 @@ contract CheckAuthConfiguration is BaseScript {
             "CheckAuth: atomicSolver.finishSolve MUST NOT be anon-callable"
         );
         require(
+            !authority.canCall(CANARY_EOA, config.atomicSolver, P2P_SOLVE_SELECTOR),
+            "CheckAuth: atomicSolver.p2pSolve MUST NOT be anon-callable"
+        );
+        require(
+            !authority.canCall(CANARY_EOA, config.atomicSolver, REDEEM_SOLVE_SELECTOR),
+            "CheckAuth: atomicSolver.redeemSolve MUST NOT be anon-callable"
+        );
+        require(
             !authority.isCapabilityPublic(config.atomicSolver, P2P_SOLVE_SELECTOR),
             "CheckAuth: atomicSolver.p2pSolve MUST NOT be public"
         );
