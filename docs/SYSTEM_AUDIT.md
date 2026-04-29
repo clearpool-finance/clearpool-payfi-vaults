@@ -323,9 +323,9 @@ Third-pass work added three parallel reviews:
 | Finding | Severity | Status | Commit(s) | Notes |
 |---|---|---|---|---|
 | A-1 | HIGH | ✅ Shipped | `b258483` | Bad rates no longer committed; auto-pause only; new `ExchangeRateUpdateRejected` event |
-| A-2 | HIGH | ⚠️ Deferred | — | Design-track — naive `getRateSafe` switch creates pause-during-bridge / pause-during-solve deadlocks per Round-2 fix-validation. Needs paired `emergencyRefund` path |
+| A-2 | HIGH | ✅ Shipped (partial) | `<this commit>` | Switched `AtomicQueue._calculateWantAmount`, `Teller.bulkWithdraw`, and `Teller._erc20Deposit` to `getRateSafe()`. Pause-during-bridge concern is moot — N-2 already removed `accountant.checkpoint()` (and any rate lookup) from `_lzReceive` / `_handle`, so a destination pause does not black-hole bridged mints. Pause-during-solve is the *desired* behavior — the solve reverts, the user's atomic request stays open in the queue, no funds lost. The original `emergencyRefund` design item is still open as defense-in-depth for an extreme scenario but is no longer the gating concern. |
 | A-3 | HIGH | ✅ Shipped (light) | `6abd28e` | Sanity probe + 5% deviation cap on provider replacement. Full 48h timelock still open for teams wanting multi-day delays |
-| A-4 | MEDIUM | ✅ Shipped | `b258483` | Hard caps `MAX_UPPER_BOUND=11000` / `MIN_LOWER_BOUND=9000` |
+| A-4 | MEDIUM | ✅ Shipped (looser than prescribed) | `b258483` | Hard caps `MAX_UPPER_BOUND=11000` (+10%) / `MIN_LOWER_BOUND=9000` (-10%). Original prescription in §2 Chain 4 was ±5% (10500/9500). Shipped at ±10% as a deliberate trade-off — production typically configures bounds at 0.3% (10030), so 10% is 33× headroom over the actual operating envelope while still capping a compromised-owner mistake far below the prior `uint16` ceiling of 6.55×. Tightening to ±5% remains an open option pending external audit input. |
 | A-5 | MEDIUM | ⚠️ Deferred | — | Requires redesign of lending accrual to push-model; economic scope |
 | A-6 | MEDIUM | ⚠️ Deferred | — | `GenericRateProvider` staleness/decimals — helper-contract scope, not in this branch |
 | A-7 | LOW | ✅ Shipped | `b258483` | Internal `_pause()` helper, external `pause()` wrapper |

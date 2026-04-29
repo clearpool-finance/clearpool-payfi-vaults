@@ -480,6 +480,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     )
         external
         requiresAuth
+        nonReentrant
         checkAccess(msg.sender)
         checkAccess(_to)
         returns (uint256 assetsOut)
@@ -498,8 +499,11 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
         accountant.checkpoint();
 
-        // Get exchange rate in 18 decimals
-        uint256 rate = accountant.getRate();
+        // getRateSafe (not getRate) so an auto-paused accountant blocks bulkWithdraw.
+        // A-1 makes updateExchangeRate auto-pause on bound/delay violation; without this,
+        // the SOLVER could still pull at the last-known-good rate while the rate is
+        // flagged as untrusted by the accountant.
+        uint256 rate = accountant.getRateSafe();
 
         // Calculate value in 18 decimals
         uint256 withdrawValueIn18 = _shareAmount.mulDivDown(rate, ONE_SHARE);
@@ -546,8 +550,9 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
         accountant.checkpoint();
 
-        // Get exchange rate in 18 decimals
-        uint256 rate = accountant.getRate();
+        // getRateSafe (not getRate) so an auto-paused accountant blocks deposits at a
+        // stale rate. Same rationale as bulkWithdraw above.
+        uint256 rate = accountant.getRateSafe();
 
         // Convert deposit amount to 18 decimal value based on asset type
         uint256 depositValueIn18;

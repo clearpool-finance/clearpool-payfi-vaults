@@ -123,9 +123,7 @@ contract ConfigureAtomicRoles is BaseScript {
         // Allow OPERATOR_ROLE to call rescue() on AtomicSolverV5. Without this wiring,
         // `rescue` is reachable only by the contract owner (the deployer EOA until
         // setOwner is run), which is a stuck-funds risk per RT-2 / F-2.
-        authority.setRoleCapability(
-            OPERATOR_ROLE, atomicSolver, bytes4(keccak256("rescue(address,uint256,address)")), true
-        );
+        authority.setRoleCapability(OPERATOR_ROLE, atomicSolver, bytes4(keccak256("rescue(address,uint256)")), true);
 
         // Allow AtomicQueue (via QUEUE_ROLE) to call finishSolve on AtomicSolver.
         // MUST be role-gated — finishSolve decodes caller-supplied runData into a `solver`

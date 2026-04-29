@@ -73,7 +73,7 @@ Set alerts on `RolesAuthority` and `AtomicSolverV5`:
 
 | Chain | V3 `finishSolve` public-cap revoked? | V5 deployed? |
 |---|---|---|
-| Ethereum mainnet | ✅ (via `e137ca9` config + on-chain wire) | not yet |
+| Ethereum mainnet | ✅ verified live (2026-04-30): `isCapabilityPublic(solver, finishSolve) == false`, `doesRoleHaveCapability(QUEUE_ROLE=10, solver, finishSolve) == true`, queue's role bitmap = `0x0400` (bit 10). Authority `0x670b8C56Da44A934A169DCb2dA750aB3dd4a6e13`, solver `0x5B3A41826A28b6a8ed1c5F5d6052D9dB85428d59`, queue `0x5Cf9EE4F9f967E983ee6928FDbF2F12e27Eec6A8`. Selector `finishSolve(bytes,address,address,address,uint256,uint256)` = `0x2ddd62ce`. Wired by `e137ca9` config + executed on-chain pre-this-branch. | not yet |
 | Flare (chainId 14) | ✅ verified live: `isCapabilityPublic(solver, finishSolve) == false`; `doesRoleHaveCapability(QUEUE_ROLE=10, solver, finishSolve) == true`. Authority `0xE3d4a420cA5f43aDEeb55D876dE53E73dd471bE1`, solver `0xCB0cd11dB50eb3cE4572E6134E524A9E17BeaBf5`. Safe batch executed from `0x8095862139a3f623a64cec84eb8cE82359317419`. | not yet |
 
 V5 deploys (with all the in-contract hardening — `_inSolveContext`, `_expectedQueue`, `approvedQueues`, FoT reconcile, USDT zero-reset, etc.) supersede V3 when ready. Until V5 lands, the V3 deployments are protected by the `setRoleCapability(QUEUE_ROLE, …)` config on every chain — verify with the on-chain queries above for any chain not yet listed.

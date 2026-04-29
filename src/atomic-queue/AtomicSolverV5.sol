@@ -208,16 +208,22 @@ contract AtomicSolverV5 is IAtomicSolver, Auth, ReentrancyGuard {
     event Rescued(address indexed token, address indexed to, uint256 amount);
 
     /**
-     * @notice Sweep stranded tokens out of the contract.
+     * @notice Sweep stranded tokens out of the contract to `owner()`.
      * @dev Gated by `requiresAuth` (owner or a rescuer role). Blocked while a solve
      *      is in flight so a compromised admin cannot race an ongoing settlement.
      *      Emits an event for off-chain monitoring.
      *      The contract is not designed to hold user funds between solves — this is
      *      for dust, wrong-chain airdrops, or residue from an FoT/rebase edge case.
+     *
+     *      Recipient is hard-coded to `owner()` (the protocolAdmin Safe post-deploy).
+     *      A compromised OPERATOR can trigger rescue but cannot redirect funds —
+     *      they always land at the Safe, which then routes manually. This closes
+     *      the "operator drains stuck tokens to attacker-picked address" path.
      */
-    function rescue(ERC20 token, uint256 amount, address to) external requiresAuth {
-        if (to == address(0)) revert AtomicSolverV5___ZeroAddress();
+    function rescue(ERC20 token, uint256 amount) external requiresAuth {
         if (_inSolveContext != 0) revert AtomicSolverV5___AlreadyInSolveContext();
+        address to = owner;
+        if (to == address(0)) revert AtomicSolverV5___ZeroAddress();
         token.safeTransfer(to, amount);
         emit Rescued(address(token), to, amount);
     }

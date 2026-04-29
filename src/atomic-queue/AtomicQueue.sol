@@ -428,7 +428,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         view
         returns (uint256 wantAmount)
     {
-        uint256 rate = accountant.getRate(); // Rate is in 18 decimals
+        // getRateSafe (not getRate) so a paused accountant blocks new solves. A-1 made
+        // updateExchangeRate auto-pause on bound/delay violation; without this guard the
+        // queue would keep quoting at the last-known-good rate while the protocol is
+        // signalling that the rate is untrusted.
+        uint256 rate = accountant.getRateSafe(); // Rate is in 18 decimals
 
         if (address(offer) == address(accountant.vault())) {
             // Withdrawing: vault shares -> asset

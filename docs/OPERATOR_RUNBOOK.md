@@ -24,27 +24,36 @@ If a batch ever needs to exceed the ceiling, ops top up the approval for that ba
 Not on-chain — the solver can't tell what the operator considers "expected batch size." Enforced by:
 
 1. **Onboarding** — every borrower / supplier that integrates with the queue receives this policy and a sample approval transaction with a bounded value.
-2. **Off-chain monitor** — subscribe to `IERC20.Approval(_, atomicSolver, value)` for every supported asset on every chain. Alert if `value == type(uint256).max` or `value > ceiling`. Triage within one business day; reach the approver and have them re-approve with the bounded amount.
+2. **Off-chain monitor** — subscribe to `IERC20.Approval(_, atomicSolver, value)` for every supported asset on every chain. Alert if `value == type(uint256).max` or `value > ceiling`. Triage within one business day; reach the approver and have them re-approve with the bounded amount. **Caveat**: `Approval` is *not* emitted by EIP-2612 `permit` paths or Permit2-style off-chain signature flows — those grant allowance via signature without on-chain `approve`. If the queue's integration ever accepts permit-based approvals, add a parallel signature monitor (or require all approvals to go through on-chain `approve` in the borrower onboarding doc).
 3. **Pre-deployment revocation sweep** — on every chain that previously held a vulnerable `AtomicSolverV3`, confirm pre-incident approvals have been revoked **before** announcing V5. Cross-chain status table lives in `PRE_AUDIT_CHECKLIST.md`.
 
 ## 2. Key custody
 
 Every key that holds a role-mutating or solve-grade capability MUST live behind a multisig (Safe) or, for low-volume signers, a hardware wallet behind a Safe module. The deploy script's `CheckAuthConfiguration` halts the pipeline if `protocolAdmin`, `operator`, or `exchangeRateBot` is an EOA, but custody discipline is broader than that single check.
 
-| Key | Role / capabilities | Required custody |
-|---|---|---|
-| `protocolAdmin` | Owner of every core contract (BoringVault, Manager, Accountant, Teller, AtomicQueue, AtomicSolverV5, RolesAuthority) | Safe (≥ 2-of-3, ideally 3-of-5) |
-| `operator` (`OPERATOR_ROLE`) | `setUserRole`, `p2pSolve`, `redeemSolve`, `rescue` on AtomicSolverV5 | Safe; `setUserRole` should be guarded by a Safe module that requires at least one human approval |
-| `exchangeRateBot` (`UPDATE_EXCHANGE_RATE_ROLE`) | `updateExchangeRate` on Accountant + `p2pSolve` / `redeemSolve` | Hardware key (Ledger / Fireblocks / equiv.). Hot-signing is acceptable for rate updates but the same key can solve, so treat it like a solve key. |
-| `strategist` (`STRATEGIST_ROLE`) | `manage` on BoringVault (Merkle-verified strategy execution) | Hardware key behind a Safe; rotation policy below |
-| `pauser` | `pause` on Teller / Accountant | Hardware key, low-quorum Safe (1-of-N is acceptable for fast incident response) |
+Below table is derived from the actual role-capability wiring in
+`script/deploy/single/06_DeployRolesAuthority.s.sol` and `script/ConfigureAtomicRoles.s.sol`.
+**Every selector listed under "Capabilities" is wired to that role on-chain.** If a key
+holds multiple roles, the union of capabilities applies — the operator address in
+particular is granted three roles simultaneously.
+
+| Key | Roles held | Capabilities | Required custody |
+|---|---|---|---|
+| `protocolAdmin` | OWNER (every core contract) + `UPDATE_EXCHANGE_RATE_ROLE` + `PAUSER_ROLE` | Owns BoringVault, Manager, Accountant, Teller, AtomicQueue, AtomicSolverV5, RolesAuthority. Owner = ultimate authority over `setRoleCapability`, `setUserRole`, `setOwner`, `setAuthority`, every selector in the system. Plus the rate-bot and pauser surfaces below. | Safe ≥ 2-of-3, ideally 3-of-5. Single-key compromise = total compromise. |
+| `operator` (`config.operator`) | `OPERATOR_ROLE` + `UPDATE_EXCHANGE_RATE_ROLE` + `PAUSER_ROLE` | OPERATOR: `setUserRole`, `p2pSolve`, `redeemSolve`, `rescue`, `Manager.setManageRoot`. UPDATE_EXCHANGE_RATE: see exchangeRateBot row. PAUSER: see pauser row. **Compound blast radius** — a compromised operator can install a rate provider, widen bounds, push a stale rate, and then drain via solve in the same tx. | Safe ≥ 2-of-3, with a human-approval module on `setUserRole` and `setManageRoot`. CheckAuthConfiguration enforces `extcodesize > 0`. |
+| `exchangeRateBot` (`config.exchangeRateBot`) | `UPDATE_EXCHANGE_RATE_ROLE` | `Accountant.updateExchangeRate`, `setLendingRate`, `setMaxLendingRate`, `setManagementFeeRate`, `setRateProviderData` (install rate provider!), `updateUpper` / `updateLower` (widen bounds!), `updateDelay`, `setDepositCap` on Teller, `updateManualWhitelist`/`updateContractWhitelist` on Teller, plus `p2pSolve` / `redeemSolve` on AtomicSolverV5 and `solve` on AtomicQueue. | Hardware-backed Safe. Hot-signing rate updates is acceptable cadence-wise, but the same key holds rate-provider replacement and solve, so treat as a high-value key. CheckAuthConfiguration enforces `extcodesize > 0`. |
+| `strategist`, `additionalStrategists[i]` | `STRATEGIST_ROLE` | `Manager.manageVaultWithMerkleVerification` (Merkle-gated strategy execution), `p2pSolve` / `redeemSolve` on AtomicSolverV5, `solve` on AtomicQueue, `updateManualWhitelist` / `updateContractWhitelist` on Teller. The Merkle root binds *which* targets are reachable — so root rotation (only OPERATOR + Owner) is the meta-control. | Hardware key behind a Safe. Rotation on signer change. CheckAuthConfiguration enforces `extcodesize > 0` if `config.strategist != address(0)`. |
+| `pauser` (`config.pauser`) | `PAUSER_ROLE` | `pause` / `unpause` on Teller, Accountant, Manager. Cannot move funds, but a compromised pauser can stall the protocol. | Hardware key or 1-of-N Safe — fast incident response is the priority. CheckAuthConfiguration enforces `extcodesize > 0` if `config.pauser != address(0)`. |
+| `broadcaster` (deployer EOA) | NONE post-deploy | Step 06 grants `OPERATOR_ROLE` for wiring; step 08 revokes it before `transferOwnership`. CheckAuthConfiguration asserts `!doesUserHaveRole(broadcaster, OPERATOR_ROLE)` post-deploy. | EOA acceptable (used only during the deploy broadcast). |
 
 ### Custody-related controls already on-chain
 
-- `CheckAuthConfiguration` reverts the deploy if `protocolAdmin`, `operator`, or `exchangeRateBot` has zero code (added 2026-04-30).
+- `CheckAuthConfiguration` reverts the deploy if `protocolAdmin`, `operator`, `exchangeRateBot`, `strategist` (when set), or `pauser` (when set) has zero code (added 2026-04-30).
+- `CheckAuthConfiguration` asserts the deployer EOA does not retain `OPERATOR_ROLE` / `UPDATE_EXCHANGE_RATE_ROLE` / `PAUSER_ROLE` post-deploy. Step 08 explicitly revokes these before `transferOwnership`.
 - `OPERATOR_ROLE` cannot grant itself `setRoleCapability` on the authority (RT-2 / F-1 closed).
-- `AtomicSolverV5.approvedQueues` is a per-deployment whitelist; even a compromised `OPERATOR_ROLE` cannot redirect solves to a queue it has not pre-whitelisted via `setQueueApproved`.
-- `rescue()` on `AtomicSolverV5` falls back to `owner()` if the role is unwired — the `protocolAdmin` Safe is the always-present escape hatch.
+- `AtomicSolverV5.approvedQueues` is a per-deployment whitelist; even a compromised `OPERATOR_ROLE` cannot redirect solves to a queue it has not pre-whitelisted via `setQueueApproved`. `setQueueApproved` is owner-only — no role is granted that selector.
+- `AtomicSolverV5.rescue(token, amount)` always sends to `owner()`. A compromised hot key can trigger rescue but cannot pick the destination — funds always land at the protocolAdmin Safe.
+- `AtomicQueue` and Teller `bulkWithdraw`/`bulkDeposit` use `getRateSafe()` — a paused accountant blocks every solve and bulk path automatically (closes the stale-rate window after A-1's auto-pause fires).
 
 ### Rotation
 
