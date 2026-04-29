@@ -182,13 +182,27 @@ contract CheckAuthConfiguration is BaseScript {
             !authority.canCall(config.operator, config.rolesAuthority, RolesAuthority.setRoleCapability.selector),
             "CheckAuth: operator MUST NOT hold setRoleCapability on authority (rogue-queue risk)"
         );
-        // protocolAdmin should be a contract (Safe), not an EOA. Any EOA-held governance
-        // key is a single-point-of-failure pivot.
-        uint256 adminSize;
-        address admin = config.protocolAdmin;
+        // Governance + hot-key custody: every key that holds a solve-grade or
+        // role-mutating capability must be a contract (Safe / hardware-backed
+        // smart wallet), not a raw EOA. Any EOA-held key is a single-point-of-
+        // failure pivot. OPERATOR_ROLE holds setUserRole + p2pSolve + redeemSolve;
+        // exchangeRateBot holds UPDATE_EXCHANGE_RATE_ROLE which also carries
+        // p2pSolve + redeemSolve. A compromised hot key with solve capabilities
+        // can still push solves through legitimate (whitelisted) queues even
+        // after the rogue-queue cascade is closed.
+        require(_isContract(config.protocolAdmin), "CheckAuth: protocolAdmin must be a contract, not an EOA");
+        require(_isContract(config.operator), "CheckAuth: operator must be a contract (Safe), not an EOA");
+        require(
+            _isContract(config.exchangeRateBot),
+            "CheckAuth: exchangeRateBot must be a contract (Safe / hardware-backed), not an EOA"
+        );
+    }
+
+    function _isContract(address a) internal view returns (bool) {
+        uint256 size;
         assembly {
-            adminSize := extcodesize(admin)
+            size := extcodesize(a)
         }
-        require(adminSize > 0, "CheckAuth: protocolAdmin must be a contract (multisig), not an EOA");
+        return size > 0;
     }
 }

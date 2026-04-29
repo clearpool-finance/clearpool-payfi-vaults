@@ -8,8 +8,8 @@ Branch tip: `aae8854` (plus this commit). Tracks the action items raised during 
 |---|---|---|---|
 | 1 | Mainnet-fork test for `EtherFiLiquid1Migration.t.sol` | **Closed (2026-04-30)** | `forge test --match-path test/EtherFiLiquid1Migration.t.sol --fork-url $MAINNET_RPC_URL` → `[PASS] testMigration() (gas: 4828771)`. Confirms V1↔V5 migration path is intact against live mainnet state. |
 | 2 | Full deploy script dry-run on a fork | **Closed (2026-04-30)** | Ran `forge script script/deploy/deployAll.s.sol --sig 'run(string)' eth-hex-payfi-layerzero.json --rpc-url $MAINNET_RPC_URL --fork-block-number 24777141`. All 12 stages logged in order, ending with `Auth invariants verified`. Fork at the block immediately before the mar-31 mainnet broadcast so deterministic CreateX salts don't collide; deterministic addresses produced match the live deployment 1:1, confirming the script + assertion set passes on production state. |
-| 3 | Approval ceiling policy | **Open — operational** | Operators / borrowers MUST NOT grant `type(uint256).max` to `AtomicSolverV5`. Define the per-deployment ceiling (recommended: 110% of largest expected solve batch) and document in the operator runbook. Confirm pre-incident `AtomicSolverV3` approvals are revoked on every deployment chain (the 2026-04-21 incident's blast radius was bounded by the single victim's pre-approval; ceiling caps any future incident similarly). |
-| 4 | OPERATOR / `exchangeRateBot` key custody | **Open — operational** | `OPERATOR_ROLE` retains `setUserRole` (needed for borrower onboarding) and `p2pSolve`/`redeemSolve`. `exchangeRateBot` holds `UPDATE_EXCHANGE_RATE_ROLE` which carries `p2pSolve`/`redeemSolve` too. Confirm both keys are hardware-secured (Ledger / Safe / equivalent). Hot keys with solve capabilities are an operational risk — the in-contract `approvedQueues` whitelist closes the rogue-queue escalation but a compromised solve key can still push solves through legitimate queues. |
+| 3 | Approval ceiling policy | **Closed (2026-04-30)** | Documented in `OPERATOR_RUNBOOK.md` § 1: 110%-of-batch ceiling, off-chain `Approval` monitor, pre-deployment revocation sweep. Per-deployment $-amounts get filled in before each chain rollout. Not codified on-chain (the solver can't infer "expected batch size") — risk is from external approvers, mitigated at integration + monitoring layer. |
+| 4 | OPERATOR / `exchangeRateBot` key custody | **Closed (2026-04-30)** | `CheckAuthConfiguration` now reverts the deploy if `protocolAdmin`, `operator`, or `exchangeRateBot` is an EOA (zero code). Custody policy + rotation cadence in `OPERATOR_RUNBOOK.md` § 2. |
 | 5 | Independent external audit | **Open — out of branch scope** | Documented as follow-up #10 in `SYSTEM_AUDIT.md`. Recommended scope: queue whitelist (`AtomicSolverV5.approvedQueues` + `inSolveContext` modifier), `_redeemSolve` rewrite (commit `4cd0a0e`), and the cross-chain receive path (T-1 deferred design item). Engagement should land before significant TVL is onboarded. |
 
 ## Codified post-deployment gates (already in `CheckAuthConfiguration.s.sol`)
@@ -35,6 +35,8 @@ Branch tip: `aae8854` (plus this commit). Tracks the action items raised during 
 - `canCall(operator, atomicSolver, rescue)` MUST be true
 - `canCall(operator, rolesAuthority, setRoleCapability)` MUST be false
 - `protocolAdmin` is a contract (multisig), not an EOA
+- `operator` is a contract (Safe), not an EOA ← **added 2026-04-30**
+- `exchangeRateBot` is a contract (Safe / hardware-backed wallet), not an EOA ← **added 2026-04-30**
 
 If any of those fail, the script reverts and the deployment pipeline halts.
 
