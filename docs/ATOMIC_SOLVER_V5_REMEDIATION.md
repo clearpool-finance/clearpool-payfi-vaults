@@ -27,7 +27,7 @@ Status is as of the `security/atomicsolverv3-remediation` branch.
 | M-4 | MEDIUM   | `wantApprovalAmount` unbounded vs `bulkWithdraw` proceeds              | 185–188        | ✅ Yes | ✅ Fixed — capture `assetsOut`, revert on shortfall with explicit error (§3.7) |
 | L-1 | LOW      | Unused `eETH` / `weETH` constants                                       | 19–20          | ✅ Yes | ✅ Fixed — constants removed (§3.8) |
 | L-2 | LOW      | `AlreadyInSolveContext` error declared but never emitted                | 37             | ✅ Yes | ✅ Fixed — wired up in `inSolveContext` modifier (§3.9 / §3.1) |
-| I-1 | INFO     | No token recovery mechanism                                             | —              | ✅ Yes | ✅ Fixed — `rescue(token, amount, to)` added; `requiresAuth`, blocked mid-solve, emits event (§3.10) |
+| I-1 | INFO     | No token recovery mechanism                                             | —              | ✅ Yes | ✅ Fixed — `rescue(token, amount)` added; recipient hard-coded to `owner()`, `requiresAuth`, blocked mid-solve, emits event (§3.10) |
 | I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                        | —              | ✅ Yes | ✅ Partially fixed — `updateAtomicRequest` now validates deadline/balance/allowance at submission (`f3e2fd4`); keeper-breaking `solve` skip-and-emit intentionally scoped to a separate PR (§3.11) |
 
 **All 12 findings addressed.** I-2 is split: the submission-time half (`updateAtomicRequest` validation) ships on this branch; the `AtomicQueue.solve` skip-and-emit half is intentionally scheduled as its own PR because it changes batch semantics that keeper bots rely on — shipping it here would silently break integrators.
@@ -230,26 +230,29 @@ Pure deletion. Unused, chain-misleading.
 
 Now emitted by the `inSolveContext` modifier on attempted reentry. Zero follow-up needed.
 
-### 3.10. [I-1] Restricted `rescue(token, amount, to)` — ✅ SHIPPED (`fc4cfdd`)
+### 3.10. [I-1] Restricted `rescue(token, amount)` — ✅ SHIPPED (`fc4cfdd`, hardened in red-team round)
 
-**Shipped.** Harder than the plan — also blocks mid-solve execution, reverts on zero-address, emits an event.
+**Shipped.** Harder than the plan — drops the caller-supplied `to` parameter so a compromised hot key cannot redirect funds, blocks mid-solve execution, emits an event.
 
 ```solidity
 event Rescued(address indexed token, address indexed to, uint256 amount);
 
-function rescue(ERC20 token, uint256 amount, address to) external requiresAuth {
-    if (to == address(0))        revert AtomicSolverV5___ZeroAddress();
-    if (_inSolveContext != 0)    revert AtomicSolverV5___AlreadyInSolveContext();
+function rescue(ERC20 token, uint256 amount) external requiresAuth {
+    if (_inSolveContext != 0) revert AtomicSolverV5___AlreadyInSolveContext();
+    address to = owner;
+    if (to == address(0))     revert AtomicSolverV5___ZeroAddress();
     token.safeTransfer(to, amount);
     emit Rescued(address(token), to, amount);
 }
 ```
 
+**Why `to = owner` matters.** Earlier drafts let the caller pick `to`. Red-team flagged that a compromised OPERATOR holding the rescue role could then sweep stuck tokens to an attacker-picked address. Hard-coding `to = owner` (the protocolAdmin Safe post-deploy) means a hot-key compromise can trigger rescue but cannot redirect — funds always land at the Safe, which then routes manually.
+
 **Why `_inSolveContext != 0` matters.** Even a compromised-but-authorised admin cannot race an active settlement to siphon queue-bound assets mid-flight. Combined with `requiresAuth`, this is the 2025 ToB "monitored privileged function" bar for a contract that only transiently holds user funds.
 
 **Research citation.** Per the `sc-research` brief citing Trail of Bits' June 2025 "Maturing beyond private key risk": contracts that persistently hold user deposits should be timelocked; contracts that only transiently hold funds (solvers) need event emission + gated auth, which is what we ship. The `_inSolveContext` guard is an additional hardening that's specific to this contract's lifecycle.
 
-**⚠️ Operational gotcha (CT-2/F-2).** `rescue` is `requiresAuth`-gated but no deploy script currently grants `rescue.selector` to any role. Until a role is wired or ownership is transferred to the protocol multisig, **only the deployer EOA can call `rescue`**. Tracked as follow-up PRs #2 and #3 in §5.
+**Auth wiring.** `ConfigureAtomicRoles.s.sol:126` grants `OPERATOR_ROLE` the `rescue(address,uint256)` selector, so the rescue path does not depend on the deployer EOA. `CheckAuthConfiguration` asserts both `canCall(operator, atomicSolver, rescue)` (positive) and `!isCapabilityPublic(atomicSolver, rescue)` (negative).
 
 ### 3.11. [I-2] Batch failure isolation — ⚠️ DEFERRED
 
@@ -358,7 +361,7 @@ a3c209e  docs:               initial remediation plan (this file's predecessor)
 6524195  docs:               clearpool team report + contract surface inventory
 ```
 
-**Tests:** 146 / 146 passing (`forge test`), including a new `test_rogueQueueWithQueueRoleStillBlocked` for §3.12.
+**Tests:** 147 / 147 passing on branch tip (`022314e`), including `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` and `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` for §3.12. Mainnet-fork `EtherFiLiquid1Migration.testMigration` also passes against `$MAINNET_RPC_URL`.
 
 Commits `bfdcff0` / `9a97f84` are retained for audit trail; their effective diff is folded into `4cd0a0e` which supersedes the initial M-1/M-4 design. Reviewers should read `4cd0a0e` as the authoritative form.
 
