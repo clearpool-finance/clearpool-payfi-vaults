@@ -144,7 +144,7 @@ contract DexSwapperUManagerTest is Test, MainnetAddresses {
         // This swap is acceptable.
         dexSwapperUManager.swapWithUniswapV3(manageProofs, decodersAndSanitizers, path, fees, 10e18, 0, block.timestamp);
 
-        uint256 swapCount = dexSwapperUManager.callCountPerPeriod(block.timestamp % 300);
+        uint256 swapCount = dexSwapperUManager.callCountPerPeriod(block.timestamp / 300); // audit M-3: quotient bucket
         assertEq(swapCount, 1, "Swap count should have been incremented.");
 
         // But if strategist tries to perform a high slippage swap it reverts.

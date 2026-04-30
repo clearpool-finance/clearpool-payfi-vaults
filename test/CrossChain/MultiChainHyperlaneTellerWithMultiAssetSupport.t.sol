@@ -72,22 +72,22 @@ contract MultiChainHyperlaneTellerWithMultiAssetSupportTest is MultiChainBaseTes
         );
     }
 
+    /// @notice Audit N-1 (R-2): depositAndBridge now succeeds even when shareLockPeriod > 0.
+    ///         The composite flow passes `shareLockPeriod = 0` through `_afterPublicDeposit` so
+    ///         the bridge() call's beforeTransfer hook doesn't deadlock against a lock we just set.
     function testDepositAndBridgeFailsWithShareLockTime(uint256 amount) external virtual {
         sourceTeller.addChain(DESTINATION_DOMAIN, true, true, destinationTellerAddr, CHAIN_MESSAGE_GAS_LIMIT, 0);
         sourceTeller.setShareLockPeriod(60);
 
         amount = bound(amount, 0.0001e18, 10_000e18);
-        // make a user and give them WETH
         address user = makeAddr("A user");
         address userChain2 = makeAddr("A user on chain 2");
         deal(address(WETH), user, amount);
 
-        // approve teller to spend WETH
         vm.startPrank(user);
         vm.deal(user, 10e18);
         WETH.approve(address(boringVault), amount);
 
-        // perform depositAndBridge
         BridgeData memory data = BridgeData({
             chainSelector: DESTINATION_DOMAIN,
             destinationChainReceiver: userChain2,
@@ -97,21 +97,11 @@ contract MultiChainHyperlaneTellerWithMultiAssetSupportTest is MultiChainBaseTes
         });
 
         uint256 ONE_SHARE = 10 ** boringVault.decimals();
-
-        // so you don't really need to know exact shares in reality
-        // just need to pass in a number roughly the same size to get quote
-        // I still get the real number here for testing
         uint256 shares = amount.mulDivDown(ONE_SHARE, accountant.getRateInQuoteSafe(WETH));
         uint256 quote = sourceTeller.previewFee(shares, data);
 
-        vm.expectRevert(
-            bytes(
-                abi.encodeWithSelector(
-                    TellerWithMultiAssetSupport.TellerWithMultiAssetSupport__SharesAreLocked.selector
-                )
-            )
-        );
         sourceTeller.depositAndBridge{ value: quote }(WETH, amount, shares, data);
+        assertLe(sourceTeller.shareUnlockTime(user), block.timestamp, "composite flow must not lock the sender");
     }
 
     function testDepositAndBridge(uint256 amount) external virtual {

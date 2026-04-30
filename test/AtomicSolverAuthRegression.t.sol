@@ -9,9 +9,34 @@ import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
-import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
+import { IAtomicSolver } from "src/atomic-queue/IAtomicSolver.sol";
 
-/// @title Regression tests for the [date] AtomicSolverV3 auth misconfiguration
+/// @notice Mock queue that implements the CT-2/F-1 attack: ignore the normal protocol
+///         and immediately call `solver.finishSolve` with attacker-supplied runData.
+contract RogueQueue {
+    function solve(
+        ERC20 offer,
+        ERC20 want,
+        address[] calldata, /*users*/
+        bytes calldata, /*runData*/
+        address solver
+    )
+        external
+    {
+        // Attacker-chosen runData: drain `victim`'s allowance to solver, using the
+        // SolveType.P2P path to route through _p2pSolve.
+        bytes memory evilRunData = abi.encode(
+            AtomicSolverV5.SolveType.P2P,
+            address(0xdEADBEeF00000000000000000000000000000000), // victim
+            uint256(0),
+            type(uint256).max
+        );
+        IAtomicSolver(solver).finishSolve(evilRunData, solver, offer, want, 0, 100_000e18);
+    }
+}
+
+/// @title Regression tests for the [date] AtomicSolverV5 auth misconfiguration
 /// @notice These tests mirror the auth wiring produced by
 ///         `script/ConfigureAtomicRoles.s.sol::_configure()`. If any future edit silently
 ///         reverts the `setRoleCapability(QUEUE_ROLE, ...)` back to `setPublicCapability(...)`
@@ -39,7 +64,7 @@ contract AtomicSolverAuthRegression is Test {
     AccountantWithRateProviders internal accountant;
     TellerWithMultiAssetSupport internal teller;
     AtomicQueue internal queue;
-    AtomicSolverV3 internal solver;
+    AtomicSolverV5 internal solver;
 
     // Assets
     MockERC20 internal want; // "USDX" analogue
@@ -55,7 +80,7 @@ contract AtomicSolverAuthRegression is Test {
         );
         teller = new TellerWithMultiAssetSupport(admin, address(vault), address(accountant));
         queue = new AtomicQueue(address(accountant), admin, authority);
-        solver = new AtomicSolverV3(admin, authority);
+        solver = new AtomicSolverV5(admin, authority);
 
         vault.setAuthority(authority);
         accountant.setAuthority(authority);
@@ -79,6 +104,9 @@ contract AtomicSolverAuthRegression is Test {
 
         // Other capabilities (subset of ConfigureAtomicRoles that's relevant here)
         authority.setUserRole(address(solver), SOLVER_ROLE, true);
+
+        // In-contract whitelist: the real queue is approved; any other queue is not.
+        solver.setQueueApproved(address(queue), true);
     }
 
     function test_correctWiring_attackerCannotCallFinishSolve() public {
@@ -86,7 +114,7 @@ contract AtomicSolverAuthRegression is Test {
 
         // Attacker crafts runData that would drain the victim if finishSolve ran
         bytes memory runData = abi.encode(
-            AtomicSolverV3.SolveType.P2P,
+            AtomicSolverV5.SolveType.P2P,
             victim, // "solver" == victim (who has an approval)
             uint256(0), // minOfferReceived
             type(uint256).max // maxAssets
@@ -97,19 +125,75 @@ contract AtomicSolverAuthRegression is Test {
         solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
-    function test_correctWiring_queueCanCallFinishSolve() public {
+    function test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext() public {
         _wireCorrect();
 
-        // Simulate the queue calling back into finishSolve during a legitimate solve.
-        // (We don't run a full solve; we only need to verify the auth passes.)
-        // The `initiator != address(this)` check will then revert — meaning the auth layer
-        // already passed. We're specifically testing: does QUEUE_ROLE let `queue` reach this function?
-        bytes memory runData = abi.encode(AtomicSolverV3.SolveType.P2P, admin, uint256(0), type(uint256).max);
+        // A rogue QUEUE_ROLE holder attempts a direct finishSolve call without first
+        // entering a solve. Blocked by `_inSolveContext != 1` at the top of finishSolve.
+        address rogueEOA = address(0xBadBadBad);
+        authority.setUserRole(rogueEOA, QUEUE_ROLE, true);
+
+        bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, victim, uint256(0), type(uint256).max);
+
+        vm.prank(rogueEOA);
+        vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
+        solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
+    }
+
+    /// @notice End-to-end reproduction of CT-2/F-1 (the real attack path).
+    /// @dev Models a compromised OPERATOR who:
+    ///        1. Still holds `setUserRole` on the Authority (needed for borrower onboarding).
+    ///        2. Has `p2pSolve` capability via the normal role wiring (OPERATOR has it).
+    ///        3. Mints QUEUE_ROLE on an attacker-deployed RogueQueue contract.
+    ///        4. Calls `solver.p2pSolve(rogueQueue, …)` to enter a live solve with the rogue.
+    ///        5. RogueQueue.solve immediately callbacks finishSolve with attacker runData
+    ///           to drain any pre-approved address.
+    ///      Without the approved-queue whitelist, every check inside finishSolve passed
+    ///      (`_inSolveContext == 1`, `msg.sender == _expectedQueue == rogueQueue`,
+    ///      `initiator == address(this)`, `requiresAuth` OK) and the victim's allowance
+    ///      was drained. After, `p2pSolve` reverts at entry with `UnapprovedQueue` before
+    ///      the solve context is ever entered.
+    function test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist() public {
+        _wireCorrect();
+
+        // Wire the attacker like a compromised OPERATOR would.
+        bytes4 p2pSelector = bytes4(keccak256("p2pSolve(address,address,address,address[],uint256,uint256)"));
+        authority.setRoleCapability(OPERATOR_ROLE, address(solver), p2pSelector, true);
+        authority.setUserRole(attacker, OPERATOR_ROLE, true);
+
+        // Attacker deploys and Authority-registers the rogue queue.
+        RogueQueue rogue = new RogueQueue();
+        authority.setUserRole(address(rogue), QUEUE_ROLE, true);
+
+        uint256 victimBefore = want.balanceOf(victim);
+        address[] memory users = new address[](0);
+
+        // Exploit entry: must revert at UnapprovedQueue BEFORE the solve context opens.
+        vm.prank(attacker);
+        vm.expectRevert(
+            abi.encodeWithSelector(AtomicSolverV5.AtomicSolverV5___UnapprovedQueue.selector, address(rogue))
+        );
+        solver.p2pSolve(AtomicQueue(address(rogue)), ERC20(address(want)), ERC20(address(want)), users, 0, 1);
+
+        // Victim untouched.
+        assertEq(want.balanceOf(victim), victimBefore, "victim funds must not move");
+        assertEq(want.balanceOf(address(solver)), 0, "solver must hold no victim funds");
+        assertEq(want.allowance(address(solver), attacker), 0, "attacker must hold no allowance");
+    }
+
+    function test_correctWiring_queueCanPassAuthButLockBlocksDirectCall() public {
+        _wireCorrect();
+
+        // The queue has QUEUE_ROLE and therefore passes the Authority-level `requiresAuth` check.
+        // However the new in-contract solve-context lock (C-1/M-2/L-2 fix) rejects ANY call
+        // to finishSolve that is not reached via a live p2pSolve / redeemSolve. Direct calls
+        // by the queue — if the queue were ever compromised or pointed at a different solver —
+        // are blocked with NotInSolveContext. This is the defense-in-depth guarantee.
+        bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, admin, uint256(0), type(uint256).max);
 
         vm.prank(address(queue));
-        vm.expectRevert(AtomicSolverV3.AtomicSolverV3___WrongInitiator.selector);
-        // Pass a deliberately-wrong initiator so we check only the auth layer, not the full solve
-        solver.finishSolve(runData, address(0xdead), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
+        vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
+        solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, 1e18);
     }
 
     function test_correctWiring_canCallMatrixIsTight() public {
@@ -142,38 +226,26 @@ contract AtomicSolverAuthRegression is Test {
         authority.setUserRole(address(solver), SOLVER_ROLE, true);
     }
 
-    function test_brokenWiring_reproducesExploit() public {
+    function test_brokenWiring_stillBlockedByInContractLock() public {
+        // Simulate the ORIGINAL buggy wiring (setPublicCapability). Historically this
+        // let attackers drain any address with an approval to the solver. Post-fix,
+        // the in-contract solve-context lock blocks the exploit *even if* Authority
+        // is misconfigured back to public — this is the defense-in-depth claim.
         _wireBroken();
 
-        uint256 before = want.balanceOf(victim);
+        uint256 victimBefore = want.balanceOf(victim);
+        uint256 solverBefore = want.balanceOf(address(solver));
         uint256 amount = 100_000e18;
 
-        // Attacker passes runData with solver=victim (who has an approval to AtomicSolverV3),
-        // and `initiator = address(solver)` to bypass the parameter-based check.
-        bytes memory runData = abi.encode(
-            AtomicSolverV3.SolveType.P2P,
-            victim,
-            uint256(0),
-            type(uint256).max
-        );
+        bytes memory runData = abi.encode(AtomicSolverV5.SolveType.P2P, victim, uint256(0), type(uint256).max);
 
         vm.prank(attacker);
-        solver.finishSolve(
-            runData,
-            address(solver), // bypasses `initiator != address(this)` check
-            ERC20(address(want)),
-            ERC20(address(want)),
-            0,
-            amount
-        );
+        vm.expectRevert(AtomicSolverV5.AtomicSolverV5___NotInSolveContext.selector);
+        solver.finishSolve(runData, address(solver), ERC20(address(want)), ERC20(address(want)), 0, amount);
 
-        // Victim was drained. The funds sit in the solver now approved to the attacker.
-        assertEq(want.balanceOf(victim), before - amount, "victim drained via broken wiring");
-        assertEq(want.balanceOf(address(solver)), amount, "solver now holds victim's funds");
-        assertEq(
-            want.allowance(address(solver), attacker),
-            amount,
-            "attacker now has allowance to transferFrom the solver"
-        );
+        // Victim funds untouched, solver has nothing, no allowance created.
+        assertEq(want.balanceOf(victim), victimBefore, "victim funds must remain intact");
+        assertEq(want.balanceOf(address(solver)), solverBefore, "solver must not hold victim funds");
+        assertEq(want.allowance(address(solver), attacker), 0, "no allowance to attacker");
     }
 }

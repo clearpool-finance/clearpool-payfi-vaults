@@ -363,7 +363,9 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
         assertApproxEqRel(fees_owed, expected_fees_owed, 0.001e18, "Fees after 3 hours");
         assertFalse(is_paused, "Should not be paused");
 
-        // Test pausing due to timing: Update too quickly
+        // Test pausing due to timing: Update too quickly.
+        // Post audit A-1 fix: the rate must NOT be committed on rejection; only pause fires.
+        uint96 rateBeforeRejection = uint96(1.0005e18);
         new_exchange_rate = uint96(1.0e18);
         accountant.updateExchangeRate(new_exchange_rate);
 
@@ -371,7 +373,7 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
         (, fees_owed,, current_exchange_rate,,, last_update_timestamp, is_paused,,) = accountant.accountantState();
 
         assertApproxEqRel(fees_owed, expected_fees_owed, 0.001e18, "Fees should not change on pause");
-        assertEq(current_exchange_rate, new_exchange_rate, "Rate should still update even when pausing");
+        assertEq(current_exchange_rate, rateBeforeRejection, "Rejected update must NOT commit the bad rate (A-1)");
         assertTrue(is_paused, "Should pause due to timing violation");
 
         // Unpause for next test
@@ -380,17 +382,20 @@ contract AccountantWithRateProvidersTest is Test, MainnetAddresses {
         // Test pausing due to bounds: After 1 more hour (4 hours total)
         skip(1 days / 24);
 
-        // Recalculate expected fees after skip
-        totalTimeElapsed = block.timestamp - testStartTime;
-        expected_fees_owed = avgAUM.mulDivDown(uint256(0.01e4) * totalTimeElapsed, 365 days * 10_000);
+        // Post A-1 fix: a rejected updateExchangeRate does NOT run _checkpointInterestAndFees
+        // (cross-contract invariant #6 — rejected updates must not advance _lastAccrualTime).
+        // Fees therefore remain at their last-successful-checkpoint value (3h), not 4h.
+        uint256 expected_fees_at_3h = expected_fees_owed;
 
+        // The last committed rate before this rejection is `rateBeforeRejection` from earlier
+        // (the 1.0005e18 one, since every subsequent attempt has been rejected).
         new_exchange_rate = uint96(10.0e18); // Way out of bounds
         accountant.updateExchangeRate(new_exchange_rate);
 
         (, fees_owed,, current_exchange_rate,,, last_update_timestamp, is_paused,,) = accountant.accountantState();
 
-        assertApproxEqRel(fees_owed, expected_fees_owed, 0.001e18, "Fees after 4 hours");
-        assertEq(current_exchange_rate, new_exchange_rate, "Rate should update even when pausing");
+        assertApproxEqRel(fees_owed, expected_fees_at_3h, 0.001e18, "Fees remain at last successful checkpoint");
+        assertEq(current_exchange_rate, rateBeforeRejection, "Out-of-bounds update must NOT commit the bad rate (A-1)");
         assertTrue(is_paused, "Should pause due to bounds violation");
     }
 

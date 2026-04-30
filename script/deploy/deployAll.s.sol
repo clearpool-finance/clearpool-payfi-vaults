@@ -20,7 +20,7 @@ import {
 import { DeployMultiChainHyperlaneTeller } from "./single/05c_DeployMultiChainHyperlaneTeller.s.sol";
 import { DeployRolesAuthority } from "./single/06_DeployRolesAuthority.s.sol";
 import { DeployAtomicQueue } from "./DeployAtomicQueue.s.sol";
-import { DeployAtomicSolverV3 } from "./DeployAtomicSolverV3.s.sol";
+import { DeployAtomicSolverV5 } from "./DeployAtomicSolverV5.s.sol";
 import { ConfigureAtomicRoles } from "../ConfigureAtomicRoles.s.sol";
 import { CheckAuthConfiguration } from "../CheckAuthConfiguration.s.sol";
 import { TellerSetup } from "./single/07_TellerSetup.s.sol";
@@ -104,10 +104,10 @@ contract DeployAll is BaseScript {
         config.atomicQueue = atomicQueue;
         console.log("Atomic Queue: ", atomicQueue);
 
-        // Deploy AtomicSolverV3
-        address atomicSolver = new DeployAtomicSolverV3().deployWithConfig(config.rolesAuthority);
+        // Deploy AtomicSolverV5
+        address atomicSolver = new DeployAtomicSolverV5().deployWithConfig(config.rolesAuthority);
         config.atomicSolver = atomicSolver;
-        console.log("Atomic Solver V3: ", atomicSolver);
+        console.log("Atomic Solver V5: ", atomicSolver);
 
         // Configure Atomic roles
         new ConfigureAtomicRoles().deployWithConfig(config);

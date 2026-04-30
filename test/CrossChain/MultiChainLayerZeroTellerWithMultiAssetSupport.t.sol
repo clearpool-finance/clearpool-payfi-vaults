@@ -60,6 +60,12 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupportTest is MultiChainBaseTes
         assertEq(boringVault.balanceOf(to), sharesToBridge, "to address should have shares");
     }
 
+    /// @notice Audit N-1 (R-2): depositAndBridge previously reverted with SharesAreLocked when
+    ///         shareLockPeriod > 0, because it set the unlock time and then immediately called
+    ///         bridge() which enforces the hook. The fix passes shareLockPeriod=0 through the
+    ///         composite flow — lock is pointless when shares burn in the same tx.
+    ///         This test now asserts the opposite: with lock period configured, depositAndBridge
+    ///         still SUCCEEDS.
     function testDepositAndBridgeFailsWithShareLockTime(uint256 amount) external virtual {
         MultiChainLayerZeroTellerWithMultiAssetSupport sourceTeller =
             MultiChainLayerZeroTellerWithMultiAssetSupport(sourceTellerAddr);
@@ -71,17 +77,14 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupportTest is MultiChainBaseTes
         sourceTeller.setShareLockPeriod(60);
 
         amount = bound(amount, 0.0001e18, 10_000e18);
-        // make a user and give them WETH
         address user = makeAddr("A user");
         address userChain2 = makeAddr("A user on chain 2");
         deal(address(WETH), user, amount);
 
-        // approve teller to spend WETH
         vm.startPrank(user);
         vm.deal(user, 10e18);
         WETH.approve(address(boringVault), amount);
 
-        // perform depositAndBridge
         BridgeData memory data = BridgeData({
             chainSelector: DESTINATION_SELECTOR,
             destinationChainReceiver: userChain2,
@@ -91,21 +94,16 @@ contract MultiChainLayerZeroTellerWithMultiAssetSupportTest is MultiChainBaseTes
         });
 
         uint256 ONE_SHARE = 10 ** boringVault.decimals();
-
-        // so you don't really need to know exact shares in reality
-        // just need to pass in a number roughly the same size to get quote
-        // I still get the real number here for testing
         uint256 shares = amount.mulDivDown(ONE_SHARE, accountant.getRateInQuoteSafe(WETH));
         uint256 quote = sourceTeller.previewFee(shares, data);
 
-        vm.expectRevert(
-            bytes(
-                abi.encodeWithSelector(
-                    TellerWithMultiAssetSupport.TellerWithMultiAssetSupport__SharesAreLocked.selector
-                )
-            )
-        );
+        // Post-fix: the composite flow passes even with a configured shareLockPeriod.
+        // `shareUnlockTime[user]` should remain 0 because depositAndBridge calls
+        // _afterPublicDeposit with 0 — the shares are burned immediately by bridge().
         sourceTeller.depositAndBridge{ value: quote }(WETH, amount, shares, data);
+        // shareUnlockTime should be set to block.timestamp (lockPeriod=0 in composite), i.e.
+        // NOT in the future — the bridge() hook must have been satisfiable.
+        assertLe(sourceTeller.shareUnlockTime(user), block.timestamp, "composite flow must not lock the sender");
     }
 
     function testDepositAndBridge(uint256 amount) external virtual {

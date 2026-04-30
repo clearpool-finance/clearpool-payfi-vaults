@@ -178,15 +178,20 @@ contract DeployRolesAuthority is BaseScript {
             OPERATOR_ROLE, config.manager, ManagerWithMerkleVerification.setManageRoot.selector, true
         );
 
-        // Allow OPERATOR_ROLE to add/remove user roles (needed to add borrower later)
+        // Allow OPERATOR_ROLE to add/remove user roles (needed to add borrower later).
+        // Note: this is still a large authority surface — an operator can grant any existing
+        // capability to any address. Tighten further if a RoleAdmin pattern lands.
         rolesAuthority.setRoleCapability(
             OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setUserRole.selector, true
         );
-        
-        // Allow OPERATOR_ROLE to set role capabilities
-        rolesAuthority.setRoleCapability(
-            OPERATOR_ROLE, address(rolesAuthority), RolesAuthority.setRoleCapability.selector, true
-        );
+
+        // INTENTIONALLY OMITTED: previously OPERATOR_ROLE also held
+        // `RolesAuthority.setRoleCapability`. That combination let a compromised
+        // OPERATOR wildcard-grant `QUEUE_ROLE` to a rogue queue and drive the
+        // rogue-queue → finishSolve cascade documented in
+        // docs/ATOMIC_SOLVER_V3_REDTEAM_AND_SURFACE.md §2 (RT-2 / F-1).
+        // Keep setRoleCapability owner-only; operators only rotate *user* roles,
+        // not the role-capability matrix.
 
         // --- Set Public Capabilities ---
         rolesAuthority.setPublicCapability(config.teller, TellerWithMultiAssetSupport.deposit.selector, true);

@@ -11,7 +11,7 @@ import {
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { RolesAuthority, Authority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
-import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
@@ -21,11 +21,12 @@ contract DeployNucleusCrossChain is Script {
     using FixedPointMathLib for uint256;
 
     // Role definitions
-    uint8 public constant ADMIN_ROLE = 1;
-    uint8 public constant MANAGER_ROLE = 2;
-    uint8 public constant MINTER_ROLE = 7;
-    uint8 public constant BURNER_ROLE = 8;
-    uint8 public constant SOLVER_ROLE = 9;
+    // Audit D-1: shift local-only roles above Constants.sol's reserved 1–7 range.
+    uint8 public constant MANAGER_ROLE = 2; // matches Constants.MANAGER_ROLE
+    uint8 public constant ADMIN_ROLE = 12;
+    uint8 public constant MINTER_ROLE = 13;
+    uint8 public constant BURNER_ROLE = 14;
+    uint8 public constant SOLVER_ROLE = 15;
     uint8 public constant QUEUE_ROLE = 10;
     uint8 public constant CAN_SOLVE_ROLE = 11;
 
@@ -54,7 +55,7 @@ contract DeployNucleusCrossChain is Script {
     AccountantWithRateProviders public l1Accountant;
     RolesAuthority public l1Authority;
     AtomicQueue public l1AtomicQueue;
-    AtomicSolverV3 public l1AtomicSolver;
+    AtomicSolverV5 public l1AtomicSolver;
 
     // L2 Contracts (OP Sepolia)
     BoringVault public l2Vault;
@@ -62,7 +63,7 @@ contract DeployNucleusCrossChain is Script {
     AccountantWithRateProviders public l2Accountant;
     RolesAuthority public l2Authority;
     AtomicQueue public l2AtomicQueue;
-    AtomicSolverV3 public l2AtomicSolver;
+    AtomicSolverV5 public l2AtomicSolver;
 
     function run() external {
         // Read private key
@@ -134,7 +135,8 @@ contract DeployNucleusCrossChain is Script {
         console2.log("L1 AtomicQueue deployed:", address(l1AtomicQueue));
 
         // Deploy L1 AtomicSolver
-        l1AtomicSolver = new AtomicSolverV3(owner, l1Authority);
+        l1AtomicSolver = new AtomicSolverV5(owner, l1Authority);
+        l1AtomicSolver.setQueueApproved(address(l1AtomicQueue), true);
         console2.log("L1 AtomicSolver deployed:", address(l1AtomicSolver));
 
         // Setup L1 permissions
@@ -184,7 +186,8 @@ contract DeployNucleusCrossChain is Script {
         console2.log("L2 AtomicQueue deployed:", address(l2AtomicQueue));
 
         // Deploy L2 AtomicSolver
-        l2AtomicSolver = new AtomicSolverV3(owner, l2Authority);
+        l2AtomicSolver = new AtomicSolverV5(owner, l2Authority);
+        l2AtomicSolver.setQueueApproved(address(l2AtomicQueue), true);
         console2.log("L2 AtomicSolver deployed:", address(l2AtomicSolver));
 
         // Setup L2 permissions
@@ -265,8 +268,8 @@ contract DeployNucleusCrossChain is Script {
         l1Authority.setRoleCapability(
             SOLVER_ROLE, address(l1Teller), TellerWithMultiAssetSupport.bulkWithdraw.selector, true
         );
-        l1Authority.setRoleCapability(CAN_SOLVE_ROLE, address(l1AtomicSolver), AtomicSolverV3.p2pSolve.selector, true);
-        l1Authority.setRoleCapability(QUEUE_ROLE, address(l1AtomicSolver), AtomicSolverV3.finishSolve.selector, true);
+        l1Authority.setRoleCapability(CAN_SOLVE_ROLE, address(l1AtomicSolver), AtomicSolverV5.p2pSolve.selector, true);
+        l1Authority.setRoleCapability(QUEUE_ROLE, address(l1AtomicSolver), AtomicSolverV5.finishSolve.selector, true);
 
         // Set public capabilities
         l1Authority.setPublicCapability(address(l1Teller), TellerWithMultiAssetSupport.deposit.selector, true);
@@ -282,7 +285,10 @@ contract DeployNucleusCrossChain is Script {
         l1Authority.setUserRole(address(l1AtomicSolver), SOLVER_ROLE, true);
         l1Authority.setUserRole(address(l1AtomicQueue), QUEUE_ROLE, true);
         l1Authority.setUserRole(solver, CAN_SOLVE_ROLE, true);
-        l1Authority.setUserRole(exchangeRateBot, ADMIN_ROLE, true);
+        // Audit D-3: removed `setUserRole(exchangeRateBot, ADMIN_ROLE)`. ADMIN_ROLE never
+        // has any capability wired in this file, so the grant was dead — but it would have
+        // been a copy-paste bomb if a future edit added one. If the bot needs UPDATE_EXCHANGE_RATE
+        // capabilities, wire those through UPDATE_EXCHANGE_RATE_ROLE explicitly.
     }
 
     function _setupL2Permissions() internal {
@@ -300,8 +306,8 @@ contract DeployNucleusCrossChain is Script {
         l2Authority.setRoleCapability(
             SOLVER_ROLE, address(l2Teller), TellerWithMultiAssetSupport.bulkWithdraw.selector, true
         );
-        l2Authority.setRoleCapability(CAN_SOLVE_ROLE, address(l2AtomicSolver), AtomicSolverV3.p2pSolve.selector, true);
-        l2Authority.setRoleCapability(QUEUE_ROLE, address(l2AtomicSolver), AtomicSolverV3.finishSolve.selector, true);
+        l2Authority.setRoleCapability(CAN_SOLVE_ROLE, address(l2AtomicSolver), AtomicSolverV5.p2pSolve.selector, true);
+        l2Authority.setRoleCapability(QUEUE_ROLE, address(l2AtomicSolver), AtomicSolverV5.finishSolve.selector, true);
 
         // Set public capabilities
         l2Authority.setPublicCapability(address(l2Teller), TellerWithMultiAssetSupport.deposit.selector, true);
@@ -317,7 +323,7 @@ contract DeployNucleusCrossChain is Script {
         l2Authority.setUserRole(address(l2AtomicSolver), SOLVER_ROLE, true);
         l2Authority.setUserRole(address(l2AtomicQueue), QUEUE_ROLE, true);
         l2Authority.setUserRole(solver, CAN_SOLVE_ROLE, true);
-        l2Authority.setUserRole(exchangeRateBot, ADMIN_ROLE, true);
+        // Audit D-3: removed dead `setUserRole(exchangeRateBot, ADMIN_ROLE)` — see L1 note.
     }
 
     function _addL1Assets() internal {

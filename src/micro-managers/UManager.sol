@@ -40,12 +40,17 @@ abstract contract UManager is Auth {
     modifier enforceRateLimit() {
         // Use parenthesis to avoid stack too deep error.
         {
-            // We include this call in the current call count for period.
-            uint256 currentCallCountForPeriod = callCountPerPeriod[block.timestamp % period] + 1;
+            // Audit M-3: key buckets by `block.timestamp / period` (quotient) rather than
+            // `% period` (modulo). Modulo reuses the same bucket every `period` seconds,
+            // so old counts carry forward and strategists see spurious CallCountExceeded
+            // reverts at unpredictable times. Quotient gives each wall-clock period a
+            // fresh bucket.
+            uint256 bucket = block.timestamp / period;
+            uint256 currentCallCountForPeriod = callCountPerPeriod[bucket] + 1;
             if (currentCallCountForPeriod > allowedCallsPerPeriod) {
                 revert UManager__CallCountExceeded();
             }
-            callCountPerPeriod[block.timestamp % period] = currentCallCountForPeriod;
+            callCountPerPeriod[bucket] = currentCallCountForPeriod;
         }
         _;
     }

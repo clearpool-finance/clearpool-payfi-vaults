@@ -104,17 +104,20 @@ contract DexAggregatorUManager is UManager {
         targetData[1] = data;
         // values[1] = 0;
 
-        uint256 tokenOutBalanceDelta = tokenOut.balanceOf(boringVault);
+        // Audit M-1: snapshot the fair-value expected output BEFORE the swap using
+        // `priceRouter`. The previous implementation computed slippage against the POST-swap
+        // pool state, which a sandwich attacker trivially passes by moving the pool.
+        //
+        // NOTE: the guarantee is only as strong as `priceRouter`. `priceRouter` MUST be
+        // configured against a manipulation-resistant source (Chainlink / TWAP) — not the
+        // same pool the swap executes against. Verify per deployment.
+        uint256 minTokenOut = priceRouter.getValue(tokenIn, amountIn, tokenOut).mulDivDown(1e4 - allowedSlippage, 1e4);
+        uint256 tokenOutBalanceBefore = tokenOut.balanceOf(boringVault);
 
         // Make the manage call.
         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
 
-        tokenOutBalanceDelta = tokenOut.balanceOf(boringVault) - tokenOutBalanceDelta;
-
-        uint256 tokenOutQuotedInTokenIn = priceRouter.getValue(tokenOut, tokenOutBalanceDelta, tokenIn);
-
-        // Check slippage.
-        if (tokenOutQuotedInTokenIn < amountIn.mulDivDown(1e4 - allowedSlippage, 1e4)) {
+        if (tokenOut.balanceOf(boringVault) - tokenOutBalanceBefore < minTokenOut) {
             revert DexAggregatorUManager__Slippage();
         }
 

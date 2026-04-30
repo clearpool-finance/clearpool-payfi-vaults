@@ -79,6 +79,10 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     error AtomicQueue__NoValidRequests();
     error AtomicQueue__NoOutputExpected();
     error AtomicQueue__ZeroOutputAmount();
+    error AtomicQueue__PastDeadline(uint64 deadline, uint256 nowTs);
+    error AtomicQueue__InsufficientOfferBalance(uint256 balance, uint96 offerAmount);
+    error AtomicQueue__InsufficientOfferAllowance(uint256 allowance, uint96 offerAmount);
+    error AtomicQueue__SolverMustBeSender(address sender, address solver);
 
     //============================== EVENTS ===============================
 
@@ -155,12 +159,28 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
     /**
      * @notice Allows user to add/update their withdraw request.
+     * @dev Validates preconditions at submission time so griefers cannot plant requests that
+     *      will revert inside `solve`'s batch loop (see RT-3/F-2+F-3). Setting offerAmount=0
+     *      is still allowed — it is the canonical way to cancel a previously-active request.
      * @param offer the ERC20 token the user is offering in exchange for the want
      * @param want the ERC20 token the user wants in exchange for offer
      * @param deadline unix timestamp for when request is no longer valid
      * @param offerAmount the amount of offer asset to exchange
      */
     function updateAtomicRequest(ERC20 offer, ERC20 want, uint64 deadline, uint96 offerAmount) external nonReentrant {
+        if (offerAmount != 0) {
+            if (deadline <= block.timestamp) revert AtomicQueue__PastDeadline(deadline, block.timestamp);
+            uint256 bal = offer.balanceOf(msg.sender);
+            if (bal < offerAmount) revert AtomicQueue__InsufficientOfferBalance(bal, offerAmount);
+            uint256 allowance = offer.allowance(msg.sender, address(this));
+            if (allowance < offerAmount) revert AtomicQueue__InsufficientOfferAllowance(allowance, offerAmount);
+            // Audit Q-2: the submission-time dust check (wantAmount > 0) is intentionally NOT
+            // applied here. It would require `_calculateWantAmount` which reverts when the (offer,
+            // want) pair has no rate-provider registered yet — breaking deployment sequencing
+            // patterns. The load-bearing fix is the solve-time skip-and-emit redesign of
+            // `AtomicQueue.solve` (deferred I-2 in SYSTEM_AUDIT.md §6).
+        }
+
         AtomicRequest storage request = userAtomicRequest[msg.sender][offer][want];
 
         request.deadline = deadline;
@@ -194,6 +214,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         requiresAuth
         nonReentrant
     {
+        // Audit Q-1: require the caller to be the solver. Previously a SOLVER_ROLE holder
+        // could route the offer-pull / want-push through any IAtomicSolver-compatible
+        // contract with a lurking queue allowance — forced-trade griefing. Canonical
+        // callers (AtomicSolverV5.p2pSolve / redeemSolve) already pass `address(this)`.
+        if (solver != msg.sender) revert AtomicQueue__SolverMustBeSender(msg.sender, solver);
+
         (uint256 assetsToOffer, uint256 assetsForWant, uint256[] memory userWantAmounts) =
             _prepareSolve(offer, want, users, solver);
 
@@ -322,6 +348,12 @@ contract AtomicQueue is ReentrancyGuard, Auth {
 
             if (request.offerAmount > 0) {
                 metaData[i].assetsForWant = _calculateWantAmount(offer, want, request.offerAmount);
+                // Audit Q-3: flag users whose want-amount rounds to zero under the current rate.
+                // `solve` reverts the whole batch with ZeroOutputAmount in that case; honest
+                // solvers filtering by flags should see this before they submit the tx.
+                if (metaData[i].assetsForWant == 0) {
+                    metaData[i].flags |= uint8(1) << 4;
+                }
             }
 
             if (metaData[i].flags == 0) {
@@ -396,7 +428,11 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         view
         returns (uint256 wantAmount)
     {
-        uint256 rate = accountant.getRate(); // Rate is in 18 decimals
+        // getRateSafe (not getRate) so a paused accountant blocks new solves. A-1 made
+        // updateExchangeRate auto-pause on bound/delay violation; without this guard the
+        // queue would keep quoting at the last-known-good rate while the protocol is
+        // signalling that the rate is untrusted.
+        uint256 rate = accountant.getRateSafe(); // Rate is in 18 decimals
 
         if (address(offer) == address(accountant.vault())) {
             // Withdrawing: vault shares -> asset

@@ -65,6 +65,7 @@ contract ManagerWithMerkleVerification is Auth {
     error ManagerWithMerkleVerification__OnlyCallableByBoringVault();
     error ManagerWithMerkleVerification__OnlyCallableByBalancerVault();
     error ManagerWithMerkleVerification__TotalSupplyMustRemainConstantDuringManagement();
+    error ManagerWithMerkleVerification__FlashLoanRecipientMustBeSelf();
 
     //============================== EVENTS ===============================
 
@@ -182,6 +183,12 @@ contract ManagerWithMerkleVerification is Auth {
         if (msg.sender != address(vault)) {
             revert ManagerWithMerkleVerification__OnlyCallableByBoringVault();
         }
+        // Audit V-3: Balancer sends flash-loan tokens to `recipient` and then callbacks
+        // `recipient.receiveFlashLoan(...)`. If a Merkle leaf is ever authored with
+        // recipient != address(this), the borrowed funds go elsewhere and our
+        // flashLoanIntentHash is never cleared — the loan aborts but funds are routed
+        // to the wrong address mid-window. Pin the recipient.
+        if (recipient != address(this)) revert ManagerWithMerkleVerification__FlashLoanRecipientMustBeSelf();
 
         flashLoanIntentHash = keccak256(userData);
         performingFlashLoan = true;

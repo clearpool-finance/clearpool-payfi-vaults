@@ -34,7 +34,10 @@ contract CrossChainOPTellerWithMultiAssetSupport is CrossChainTellerBase {
         CrossChainTellerBase(_owner, _vault, _accountant)
     {
         messenger = ICrossDomainMessenger(_messenger);
-        peer = address(this);
+        // Audit T-6: initialize to address(0) so receiveBridgeMessage fail-closes until
+        // setPeer is explicitly called. Previously the default `address(this)` matched
+        // any same-address CREATE2 deploy on the sibling chain.
+        peer = address(0);
     }
 
     /**
@@ -67,6 +70,11 @@ contract CrossChainOPTellerWithMultiAssetSupport is CrossChainTellerBase {
             revert CrossChainOPTellerWithMultiAssetSupport_OnlyMessenger();
         }
 
+        // Audit T-6: reject inbound before setPeer has been called. Previously peer
+        // defaulted to address(this) and would falsely match any CREATE2-aligned sibling.
+        if (peer == address(0)) {
+            revert CrossChainOPTellerWithMultiAssetSupport_OnlyPeerAsSender();
+        }
         if (messenger.xDomainMessageSender() != peer) {
             revert CrossChainOPTellerWithMultiAssetSupport_OnlyPeerAsSender();
         }

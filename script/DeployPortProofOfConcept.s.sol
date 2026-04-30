@@ -8,7 +8,7 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { RolesAuthority, Authority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
-import { AtomicSolverV3, AtomicQueue } from "src/atomic-queue/AtomicSolverV3.sol";
+import { AtomicSolverV5, AtomicQueue } from "src/atomic-queue/AtomicSolverV5.sol";
 import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";
 
 import "@forge-std/Script.sol";
@@ -17,11 +17,12 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
-    uint8 public constant ADMIN_ROLE = 1;
-    uint8 public constant MANAGER_ROLE = 2;
-    uint8 public constant MINTER_ROLE = 7;
-    uint8 public constant BURNER_ROLE = 8;
-    uint8 public constant SOLVER_ROLE = 9;
+    // Audit D-1: shift local-only roles above Constants.sol's reserved 1–7 range.
+    uint8 public constant MANAGER_ROLE = 2; // matches Constants.MANAGER_ROLE
+    uint8 public constant ADMIN_ROLE = 12;
+    uint8 public constant MINTER_ROLE = 13;
+    uint8 public constant BURNER_ROLE = 14;
+    uint8 public constant SOLVER_ROLE = 15;
     uint8 public constant QUEUE_ROLE = 10;
     uint8 public constant CAN_SOLVE_ROLE = 11;
 
@@ -33,7 +34,7 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
     AccountantWithRateProviders public accountant;
     RolesAuthority public rolesAuthority;
     AtomicQueue public atomicQueue;
-    AtomicSolverV3 public atomicSolverV3;
+    AtomicSolverV5 public atomicSolverV3;
 
     ERC20 public USDX = ERC20(0xe29f6fbc4CB3F01e2D38F0Aab7D8861285EE9C36);
 
@@ -58,9 +59,10 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
 
         rolesAuthority = new RolesAuthority(owner, Authority(address(0)));
 
-        atomicQueue = new AtomicQueue(address(accountant), address(this), rolesAuthority);
+        atomicQueue = new AtomicQueue(address(accountant), owner, rolesAuthority);
 
-        atomicSolverV3 = new AtomicSolverV3(address(this), rolesAuthority);
+        atomicSolverV3 = new AtomicSolverV5(owner, rolesAuthority);
+        atomicSolverV3.setQueueApproved(address(atomicQueue), true);
 
         /// @dev authority set up
 
@@ -95,11 +97,11 @@ contract DeployPortProofOfConceptScript is Script, MainnetAddresses {
             SOLVER_ROLE, address(teller), TellerWithMultiAssetSupport.bulkWithdraw.selector, true
         );
         rolesAuthority.setRoleCapability(
-            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.p2pSolve.selector, true
+            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV5.p2pSolve.selector, true
         );
-        rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV3.finishSolve.selector, true);
+        rolesAuthority.setRoleCapability(QUEUE_ROLE, address(atomicSolverV3), AtomicSolverV5.finishSolve.selector, true);
         rolesAuthority.setRoleCapability(
-            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV3.redeemSolve.selector, true
+            CAN_SOLVE_ROLE, address(atomicSolverV3), AtomicSolverV5.redeemSolve.selector, true
         );
         rolesAuthority.setRoleCapability(
             MINTER_ROLE, address(accountant), AccountantWithRateProviders.checkpoint.selector, true

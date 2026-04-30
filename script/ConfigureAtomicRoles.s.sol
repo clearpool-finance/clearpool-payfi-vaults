@@ -5,6 +5,7 @@ import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { BoringVault } from "src/base/BoringVault.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
+import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { BaseScript } from "./Base.s.sol";
 import { ConfigReader } from "./ConfigReader.s.sol";
 import "./../src/helper/Constants.sol";
@@ -77,7 +78,7 @@ contract ConfigureAtomicRoles is BaseScript {
             OPERATOR_ROLE, atomicQueue, bytes4(keccak256("solve(address,address,address[],bytes,address)")), true
         );
 
-        // Allow Borrower to call AtomicSolverV3 functions
+        // Allow Borrower to call AtomicSolverV5 functions
         authority.setRoleCapability(
             STRATEGIST_ROLE,
             atomicSolver,
@@ -91,7 +92,7 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
-        // Allow Cicada to call AtomicSolverV3 functions
+        // Allow Cicada to call AtomicSolverV5 functions
         authority.setRoleCapability(
             UPDATE_EXCHANGE_RATE_ROLE,
             atomicSolver,
@@ -105,7 +106,7 @@ contract ConfigureAtomicRoles is BaseScript {
             true
         );
 
-        // Allow Operator to call AtomicSolverV3 functions
+        // Allow Operator to call AtomicSolverV5 functions
         authority.setRoleCapability(
             OPERATOR_ROLE,
             atomicSolver,
@@ -118,6 +119,11 @@ contract ConfigureAtomicRoles is BaseScript {
             bytes4(keccak256("redeemSolve(address,address,address,address[],uint256,uint256,address)")),
             true
         );
+
+        // Allow OPERATOR_ROLE to call rescue() on AtomicSolverV5. Without this wiring,
+        // `rescue` is reachable only by the contract owner (the deployer EOA until
+        // setOwner is run), which is a stuck-funds risk per RT-2 / F-2.
+        authority.setRoleCapability(OPERATOR_ROLE, atomicSolver, bytes4(keccak256("rescue(address,uint256)")), true);
 
         // Allow AtomicQueue (via QUEUE_ROLE) to call finishSolve on AtomicSolver.
         // MUST be role-gated — finishSolve decodes caller-supplied runData into a `solver`
@@ -132,6 +138,13 @@ contract ConfigureAtomicRoles is BaseScript {
 
         // Allow AtomicSolver to call bulkWithdraw on Teller (for redeem solve)
         authority.setRoleCapability(SOLVER_ROLE, teller, TellerWithMultiAssetSupport.bulkWithdraw.selector, true);
+
+        // === APPROVE QUEUE ON SOLVER ===
+        // Explicit in-contract whitelist of legitimate queues. A compromised OPERATOR still
+        // holds `setUserRole` on the Authority (needed for ordinary borrower onboarding),
+        // so they can mint QUEUE_ROLE on arbitrary addresses. This list ensures the solver
+        // only routes through queues the owner has vetted, independent of role state.
+        AtomicSolverV5(atomicSolver).setQueueApproved(atomicQueue, true);
 
         // === WHITELIST ATOMIC SOLVER ===
         // Whitelist the AtomicSolver contract so it can call bulkWithdraw

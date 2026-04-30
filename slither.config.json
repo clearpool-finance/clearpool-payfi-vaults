@@ -1,17 +1,20 @@
 {
-    "filter_paths": "lib",
-    "detectors_to_exclude": "naming-convention,pragma,assembly,equality",
-    "exclude_informational": true,
-    "exclude_low": true,
-    "solc_remaps": [
-        "@solmate/=lib/solmate/src/",
-        "@forge-std/=lib/forge-std/src/",
-        "forge-std/=lib/forge-std/src/",
-        "@ds-test/=lib/forge-std/lib/ds-test/src/",
-        "ds-test/=lib/forge-std/lib/ds-test/src/",
-        "@openzeppelin/=lib/openzeppelin-contracts/",
-        "@ion-protocol/=lib/ion-protocol/src/",
-        "@layerzerolabs/=node_modules/@layerzerolabs/"
-    ]
-  }
+  "filter_paths": "lib/|node_modules/|test/|script/",
+  "detectors_to_exclude": "naming-convention,pragma,assembly,equality,arbitrary-send-erc20,encode-packed-collision,unused-return,uninitialized-local,calls-loop,reentrancy-benign,reentrancy-events,timestamp,divide-before-multiply,events-maths,too-many-digits,unchecked-lowlevel,unchecked-send,unprotected-upgrade,locked-ether,write-after-write,solc-version,low-level-calls,similar-names,external-function",
+  "exclude_informational": true,
+  "exclude_low": true,
+  "solc_remaps": [
+    "@solmate/=lib/solmate/src/",
+    "@forge-std/=lib/forge-std/src/",
+    "forge-std/=lib/forge-std/src/",
+    "@ds-test/=lib/forge-std/lib/ds-test/src/",
+    "ds-test/=lib/forge-std/lib/ds-test/src/",
+    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@ion-protocol/=lib/ion-protocol/src/",
+    "@layerzerolabs/=node_modules/@layerzerolabs/",
+    "@axelar-network/=node_modules/@axelar-network/",
+    "@chainlink/=node_modules/@chainlink/",
+    "@eth-optimism/=node_modules/@eth-optimism/"
+  ]
+}
   

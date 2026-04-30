@@ -60,6 +60,17 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     bool public isPaused;
 
     /**
+     * @notice Separate pause for INBOUND cross-chain receives. Audit N-2 (Pashov HL M-01
+     *         parallel class): a source-chain user burns shares to bridge, but if
+     *         destination teller is paused when the relayer delivers, `_beforeReceive`
+     *         reverts and funds are permanently lost (bridge relayers do not retry
+     *         indefinitely). Decouple: regular `pause()` halts new DEPOSITS only; receives
+     *         continue to deliver. Admin can explicitly `pauseReceive()` if they want to
+     *         halt inbound too. Default false (open).
+     */
+    bool public isReceivePaused;
+
+    /**
      * @dev Maps deposit nonce to keccak256(address receiver, address _depositAsset, uint256 _depositAmount, uint256
      * _shareAmount, uint256 _timestamp, uint256 _shareLockPeriod).
      */
@@ -117,13 +128,17 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     error TellerWithMultiAssetSupport__PermitFailedAndAllowanceTooLow();
     error TellerWithMultiAssetSupport__ZeroShares();
     error TellerWithMultiAssetSupport__Paused();
+    error TellerWithMultiAssetSupport__ReceivePaused();
     error TellerWithMultiAssetSupport__KeyringCredentialInvalid();
+    error TellerWithMultiAssetSupport__KeyringNotConfigured();
     error TellerWithMultiAssetSupport__NotWhitelisted();
 
     //============================== EVENTS ===============================
 
     event Paused();
     event Unpaused();
+    event ReceivePaused();
+    event ReceiveUnpaused();
     event AssetAdded(address indexed asset);
     event AssetRemoved(address indexed asset);
     event Deposit(
@@ -168,7 +183,11 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
      */
     modifier checkAccess(address _entity) {
         if (accessControlMode == AccessControlMode.KEYRING_KYC) {
-            if (!contractWhitelist[_entity] && address(keyringContract) != address(0)) {
+            // Fail closed if an admin flipped the mode to KEYRING_KYC without first configuring
+            // the keyring contract (audit T-4). Previously the modifier let every non-whitelisted
+            // address through in that window.
+            if (!contractWhitelist[_entity]) {
+                if (address(keyringContract) == address(0)) revert TellerWithMultiAssetSupport__KeyringNotConfigured();
                 if (!keyringContract.checkCredential(keyringPolicyId, _entity)) {
                     revert TellerWithMultiAssetSupport__KeyringCredentialInvalid();
                 }
@@ -211,6 +230,18 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     function unpause() external requiresAuth {
         isPaused = false;
         emit Unpaused();
+    }
+
+    /// @notice Pause inbound cross-chain receives. Audit N-2.
+    function pauseReceive() external requiresAuth {
+        isReceivePaused = true;
+        emit ReceivePaused();
+    }
+
+    /// @notice Unpause inbound cross-chain receives. Audit N-2.
+    function unpauseReceive() external requiresAuth {
+        isReceivePaused = false;
+        emit ReceiveUnpaused();
     }
 
     /**
@@ -430,6 +461,7 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         checkAccess(_to)
         returns (uint256 shares)
     {
+        if (isPaused) revert TellerWithMultiAssetSupport__Paused(); // audit T-7
         if (!isSupported[_depositAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
 
         shares = _erc20Deposit(_depositAsset, _depositAmount, _minimumMint, _to);
@@ -448,16 +480,30 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
     )
         external
         requiresAuth
+        nonReentrant
         checkAccess(msg.sender)
+        checkAccess(_to)
         returns (uint256 assetsOut)
     {
+        // Audit T-2 (refined, R3 follow-up): check BOTH the caller (solver contract) AND
+        // the final recipient. In the canonical AtomicSolver flow, `_to = address(this)`,
+        // so `_to` is the solver contract, not the end user — `_to`-only check lets a
+        // whitelisted solver pull to itself before forwarding to a sanctioned user. By
+        // also gating `msg.sender`, the solver contract itself must pass access. End-user
+        // compliance is still enforced at the queue layer where the actual user addresses
+        // live; SYSTEM_AUDIT.md tracks pushing a per-user check into AtomicQueue._finalizeSolve
+        // as a follow-up.
+        if (isPaused) revert TellerWithMultiAssetSupport__Paused(); // audit T-7
         if (!isSupported[_withdrawAsset]) revert TellerWithMultiAssetSupport__AssetNotSupported();
         if (_shareAmount == 0) revert TellerWithMultiAssetSupport__ZeroShares();
 
         accountant.checkpoint();
 
-        // Get exchange rate in 18 decimals
-        uint256 rate = accountant.getRate();
+        // getRateSafe (not getRate) so an auto-paused accountant blocks bulkWithdraw.
+        // A-1 makes updateExchangeRate auto-pause on bound/delay violation; without this,
+        // the SOLVER could still pull at the last-known-good rate while the rate is
+        // flagged as untrusted by the accountant.
+        uint256 rate = accountant.getRateSafe();
 
         // Calculate value in 18 decimals
         uint256 withdrawValueIn18 = _shareAmount.mulDivDown(rate, ONE_SHARE);
@@ -504,8 +550,9 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
 
         accountant.checkpoint();
 
-        // Get exchange rate in 18 decimals
-        uint256 rate = accountant.getRate();
+        // getRateSafe (not getRate) so an auto-paused accountant blocks deposits at a
+        // stale rate. Same rationale as bulkWithdraw above.
+        uint256 rate = accountant.getRateSafe();
 
         // Convert deposit amount to 18 decimal value based on asset type
         uint256 depositValueIn18;
@@ -530,6 +577,9 @@ contract TellerWithMultiAssetSupport is Auth, BeforeTransferHook, ReentrancyGuar
         // Calculate shares using 18 decimal values
         shares = depositValueIn18.mulDivDown(ONE_SHARE, rate);
 
+        // Audit T-8: reject dust deposits that round to zero shares even when the caller
+        // passes _minimumMint = 0. Previously the vault still pulled the tokens.
+        if (shares == 0) revert TellerWithMultiAssetSupport__ZeroShares();
         if (shares < _minimumMint) revert TellerWithMultiAssetSupport__MinimumMintNotMet();
 
         uint256 shareValueInBase = shares.mulDivDown(rate, ONE_SHARE);

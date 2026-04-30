@@ -152,7 +152,9 @@ contract DexAggregatorUManagerTest is Test, MainnetAddresses {
 
         assertEq(WETH.allowance(address(boringVault), aggregationRouterV5), 0, "Allowance should have been revoked.");
 
-        uint256 swapCount = dexAggregatorUManager.callCountPerPeriod(block.timestamp % 300);
+        // Audit M-3 fix: buckets are now keyed by block.timestamp / period (quotient),
+        // not % period (modulo). Read with the new key.
+        uint256 swapCount = dexAggregatorUManager.callCountPerPeriod(block.timestamp / 300);
         assertEq(swapCount, 1, "Swap count should have been incremented.");
 
         // Check rate limit reverts.

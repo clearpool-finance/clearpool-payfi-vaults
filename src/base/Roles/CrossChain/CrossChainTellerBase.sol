@@ -51,7 +51,14 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
         }
 
         uint256 shareAmount = _erc20Deposit(depositAsset, depositAmount, minimumMint, msg.sender);
-        _afterPublicDeposit(msg.sender, depositAsset, depositAmount, shareAmount, shareLockPeriod);
+        // Audit N-1 (R-2): pass `shareLockPeriod = 0` so `shareUnlockTime[msg.sender]` is not
+        // set. The shares are burned in the same tx by `bridge()` below, which calls
+        // `beforeTransfer(msg.sender)` — if a non-zero shareLockPeriod was baked in here the
+        // check would deadlock `depositAndBridge` on any deployment that uses share-lock
+        // MEV protection. The protection only matters for local deposit→withdraw sandwiches,
+        // and there is no sandwich window for a composite deposit→bridge (shares leave this
+        // chain atomically). History entry + event are still emitted for audit trail.
+        _afterPublicDeposit(msg.sender, depositAsset, depositAmount, shareAmount, 0);
         bridge(shareAmount, data);
     }
 
@@ -122,10 +129,16 @@ abstract contract CrossChainTellerBase is TellerWithMultiAssetSupport {
     }
 
     /**
-     * @notice a before receive hook to call some logic before a receive is processed
+     * @notice Hook invoked by each bridge variant's receive handler.
+     * @dev Audit N-2 (Pashov HL M-01 parallel class): inbound receive is governed by
+     *      `isReceivePaused`, NOT the general `isPaused` used for outbound deposits.
+     *      A source user has already burned shares by the time the relayer delivers;
+     *      blocking receive with the deposit-pause would permanently lose those shares
+     *      (bridge relayers do not retry indefinitely). Admin can still halt receive
+     *      explicitly via `pauseReceive()` if needed.
      */
     function _beforeReceive() internal virtual {
-        if (isPaused) revert TellerWithMultiAssetSupport__Paused();
+        if (isReceivePaused) revert TellerWithMultiAssetSupport__ReceivePaused();
     }
 
     /**
