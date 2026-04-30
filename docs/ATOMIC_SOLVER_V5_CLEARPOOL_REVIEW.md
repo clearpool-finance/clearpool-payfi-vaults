@@ -27,22 +27,24 @@
 
 Three adversarial agents ran in parallel, each briefed with a distinct threat model:
 
-| Agent | Lens | Agent ID |
-|---|---|---|
-| CT-1 | Token-callback & contract-reentrancy (ERC777, rebasing, rate-provider hooks) | `ad58ea286a353b2b9` |
-| CT-2 | Auth / RolesAuthority misconfiguration, callback provenance, deploy-script coverage | `af315004ece6fbafb` |
-| CT-3 | Economic griefing, MEV, oracle manipulation, batch DoS | `a109209bf77cbea56` |
+| Agent | Lens                                                                                | Agent ID            |
+| ----- | ----------------------------------------------------------------------------------- | ------------------- |
+| CT-1  | Token-callback & contract-reentrancy (ERC777, rebasing, rate-provider hooks)        | `ad58ea286a353b2b9` |
+| CT-2  | Auth / RolesAuthority misconfiguration, callback provenance, deploy-script coverage | `af315004ece6fbafb` |
+| CT-3  | Economic griefing, MEV, oracle manipulation, batch DoS                              | `a109209bf77cbea56` |
 
-Each was given the patched source (`src/atomic-queue/AtomicSolverV5.sol`), the remediation doc, and the deploy-script context. Instructions: "quality of negative finding > fabricated positive" — agents were told to explicitly report *no exploit* if they couldn't construct one.
+Each was given the patched source (`src/atomic-queue/AtomicSolverV5.sol`), the remediation doc, and the deploy-script context. Instructions: "quality of negative finding > fabricated positive" — agents were told to explicitly report _no exploit_ if they couldn't construct one.
 
 ---
 
 ## 2. Consolidated findings
 
 ### [CT-2 / F-1] — HIGH — Rogue queue via compromised OPERATOR_ROLE → `finishSolve` drain
+
 **Status:** ✅ Fixed in two iterations. See chronology below — the first pass was incomplete and a review surfaced the gap.
 
 **Attack chain:**
+
 1. `OPERATOR_ROLE` was granted `authority.setUserRole` and `authority.setRoleCapability` in commit `e137ca9` (line 182–189 of `06_DeployRolesAuthority.s.sol`). Anyone holding this role can hand out `QUEUE_ROLE`.
 2. Attacker (compromised operator) calls `authority.setUserRole(rogueQueue, QUEUE_ROLE, true)` where `rogueQueue` is an attacker-controlled contract that implements only the `solve` selector.
 3. Same attacker still holds `p2pSolve` capability via `ConfigureAtomicRoles`. They call `solver.p2pSolve(rogueQueue, ...)`.
@@ -92,17 +94,19 @@ modifier inSolveContext(address queue) {
 }
 ```
 
-**Why it closes the real attack.** `p2pSolve(rogueQueue, …)` now reverts at the very top of the modifier, *before* `_inSolveContext` opens, *before* any state change, *before* the callback fires. A compromised OPERATOR can still mint `QUEUE_ROLE` on any address — but cannot route the solver through that address without the owner first approving it via `setQueueApproved`. The Authority surface is now irrelevant to this attack class.
+**Why it closes the real attack.** `p2pSolve(rogueQueue, …)` now reverts at the very top of the modifier, _before_ `_inSolveContext` opens, _before_ any state change, _before_ the callback fires. A compromised OPERATOR can still mint `QUEUE_ROLE` on any address — but cannot route the solver through that address without the owner first approving it via `setQueueApproved`. The Authority surface is now irrelevant to this attack class.
 
 **Combined guard stack** (finishSolve now enforces four layers, in order):
+
 1. `_inSolveContext == 1` — a solve is live.
 2. `msg.sender == _expectedQueue` — the callback is from the queue that was used to open this solve.
-3. `initiator == address(this)` — *vestigial* in the current contract (documented as such in NatSpec). Retained as defense-in-depth against a future queue implementation that forgets to hardcode `msg.sender` as initiator.
+3. `initiator == address(this)` — _vestigial_ in the current contract (documented as such in NatSpec). Retained as defense-in-depth against a future queue implementation that forgets to hardcode `msg.sender` as initiator.
 4. `requiresAuth` — Authority layer.
 
 Layer (3) is the original V3 check; it predates layers (1), (2), and the `approvedQueues` whitelist. With those three in place, it provides zero additional protection against any currently reachable attack.
 
 **Regression tests.**
+
 - `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` — a rogue `QUEUE_ROLE` holder calls `finishSolve` directly with no live solve; reverts at `NotInSolveContext`.
 - `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` — **the full CT-2/F-1 attack chain**. Deploys a `RogueQueue` mock, simulates a compromised OPERATOR that mints `QUEUE_ROLE` on it, has the attacker invoke `p2pSolve(rogueQueue, …)`. Asserts the call reverts with `UnapprovedQueue(rogueQueue)` and that victim funds / solver balance / attacker allowance are all unchanged.
 
@@ -111,29 +115,33 @@ Layer (3) is the original V3 check; it predates layers (1), (2), and the `approv
 ---
 
 ### [CT-2 / F-2] — HIGH (operational) — `rescue()` reachable only by owner, no role
+
 **Status:** ✅ Fixed in commit `96fc2af`.
 
 **Finding.** The new `rescue(ERC20, uint256, address)` in commit `fc4cfdd` is gated by `requiresAuth`. Before this fix, no deploy script granted `rescue.selector` to any role, so only `AtomicSolverV5.owner()` could call it — defaulting to the deployer EOA until `setOwner` ran.
 
 **Shipped fix (`96fc2af`).**
+
 - `ConfigureAtomicRoles.s.sol`: `setRoleCapability(OPERATOR_ROLE, atomicSolver, bytes4(keccak256("rescue(address,uint256,address)")), true)`.
 - `CheckAuthConfiguration.s.sol`: asserts `AtomicSolverV5(atomicSolver).owner() == protocolAdmin` AND `canCall(operator, atomicSolver, rescue.selector) == true`. Any future deploy that skips the ownership transfer or role wiring now fails the check instead of shipping.
 
 ---
 
 ### [CT-2 / F-3] — MEDIUM — Regression coverage narrow
+
 **Status:** ⚠️ Open — tracked for follow-up.
 
-`test/AtomicSolverAuthRegression.t.sol` mirrors `ConfigureAtomicRoles.s.sol` only. Four *other* production deploy paths exist, each re-declaring `QUEUE_ROLE = 10` as a local constant (no shared definition). If a silent edit in one of them re-introduces `setPublicCapability(finishSolve)`, the current regression passes.
+`test/AtomicSolverAuthRegression.t.sol` mirrors `ConfigureAtomicRoles.s.sol` only. Four _other_ production deploy paths exist, each redeclaring `QUEUE_ROLE = 10` as a local constant (no shared definition). If a silent edit in one of them re-introduces `setPublicCapability(finishSolve)`, the current regression passes.
 
-**Fix.** Extract the canonical wiring into a library (`DeployAtomicRolesLib.sol`) imported by every deploy script *and* the regression test. Drive the regression with each production deploy path. Not done here — cross-cutting change.
+**Fix.** Extract the canonical wiring into a library (`DeployAtomicRolesLib.sol`) imported by every deploy script _and_ the regression test. Drive the regression with each production deploy path. Not done here — cross-cutting change.
 
 ---
 
 ### [CT-2 / F-4] — LOW — `AtomicSolverV2.sol` dormant but compiled
+
 **Status:** ✅ V2 deleted (`36fabe3`). ✅ V1 deleted in the Rafal follow-up commit; migration test re-pointed at `AtomicSolverV5`.
 
-**Finding.** `AtomicSolverV2.sol` had the **identical** C-1 vulnerability shape as pre-fix V3. `AtomicSolver.sol` (V1) has a *more severe* pattern — it executes arbitrary `target.functionCallWithValue(data, value)` with caller-supplied `targets`/`ammo` arrays, gated only by a custom `approvedToCallFinishSolve` mapping (not the Auth framework).
+**Finding.** `AtomicSolverV2.sol` had the **identical** C-1 vulnerability shape as pre-fix V3. `AtomicSolver.sol` (V1) has a _more severe_ pattern — it executes arbitrary `target.functionCallWithValue(data, value)` with caller-supplied `targets`/`ammo` arrays, gated only by a custom `approvedToCallFinishSolve` mapping (not the Auth framework).
 
 **Shipped.** `AtomicSolverV2.sol` deleted — zero references anywhere in the repo (verified by `grep -r AtomicSolverV2 script/ test/`).
 
@@ -142,6 +150,7 @@ Layer (3) is the original V3 check; it predates layers (1), (2), and the `approv
 ---
 
 ### [CT-3 / F-1] — HIGH (griefing) — Rate-sandwich collapses solver profit to zero
+
 **Status:** ⚠️ Open — recommend `minSolverProfit` param.
 
 **Finding.** In `_redeemSolve`, solver profit = `received − wantApprovalAmount`. Both values derive from `accountant.getRate()` at the same point in time, so they move together — which should leave profit at ~0 by construction (see §3 for the economic model). But a hostile holder of `UPDATE_EXCHANGE_RATE_ROLE` (recently expanded to `config.operator` by the same commit that triggered this remediation) can time rate bumps so that every solve arrives at the contract with profit exactly zero and gas fully burnt. Over weeks this drives legitimate solvers off the platform.
@@ -166,6 +175,7 @@ Pass through `runData`, and inside `_redeemSolve` revert if `solverProfit < minS
 ---
 
 ### [CT-3 / F-2, F-3] — MEDIUM — Batch DoS via public `updateAtomicRequest`
+
 **Status:** ⚠️ **Partially fixed** in commit `f3e2fd4`. Full fix (I-2) remains a follow-up.
 
 **Finding.** `AtomicQueue.updateAtomicRequest` (line 163) is publicly callable by design and previously had no validation. Combined with the queue's all-or-nothing batch semantics (I-2), any bogus request could grief legitimate solves.
@@ -189,15 +199,17 @@ if (offerAmount != 0) {
 ---
 
 ### [CT-1 / Hardening] — LOW → DONE — Approve-before-outbound-transfer
+
 **Status:** ✅ Applied in commits `125abbb` (for `_p2pSolve`, folded into the WrongQueue commit) and `fec065a` (for `_redeemSolve`).
 
-**Finding.** CT-1 exhaustively ruled out any exploitable re-entry against the patched V3. The only defense-in-depth recommendation: reorder `want.safeApprove(queue, ...)` to run *before* the outbound `offer.safeTransfer(solver, ...)` (p2p path) and `want.safeTransfer(solver, solverProfit)` (redeem path). This hardens against any hypothetical future function addition that might observe mid-callback state.
+**Finding.** CT-1 exhaustively ruled out any exploitable re-entry against the patched V3. The only defense-in-depth recommendation: reorder `want.safeApprove(queue, ...)` to run _before_ the outbound `offer.safeTransfer(solver, ...)` (p2p path) and `want.safeTransfer(solver, solverProfit)` (redeem path). This hardens against any hypothetical future function addition that might observe mid-callback state.
 
 **Applied.**
 
 ---
 
 ### [CT-3 / F-4 through F-8] — Verified safe
+
 - **F-4 (FoT profit ambiguity):** pre-funded donations are correctly excluded by the `balanceOf` delta pattern; no exploit.
 - **F-5 (approval-zero window):** guarded by `nonReentrant` + `_inSolveContext`.
 - **F-6 (teller vault pointer):** `TellerWithMultiAssetSupport.vault` is `immutable`. Non-issue.
@@ -205,6 +217,7 @@ if (offerAmount != 0) {
 - **F-8 (shares-transfer hook):** `BoringVault` uses plain solmate ERC20, no transfer hooks. Non-issue.
 
 ### [CT-1 / entire scope] — Verified safe
+
 Agent explicitly enumerated and ruled out each re-entry path: `p2pSolve`/`redeemSolve` (blocked by `nonReentrant` + `_inSolveContext`), `finishSolve` (blocked by `initiator` + `_expectedQueue`), `rescue` (blocked by `_inSolveContext != 0`), view functions (write nothing). Storage-slot layout clean — `Auth (2)` → `ReentrancyGuard (1)` → solver state. No collisions.
 
 ---
@@ -217,23 +230,23 @@ Produced by surface-survey sub-agent (`a5a872500bf19947d`) over 125 `.sol` files
 
 Functions that accept caller-supplied opaque data (bytes / bytes[] / function-selector blobs / runData).
 
-| Contract | Function | Auth | Risk |
-|---|---|---|---|
-| `src/base/BoringVault.sol:52` | `manage(address, bytes, uint256)` | `requiresAuth` | MED — arbitrary low-level call |
-| `src/base/BoringVault.sol:68` | `manage(address[], bytes[], uint256[])` | `requiresAuth` | MED — batched arbitrary calls |
-| `src/atomic-queue/AtomicQueue.sol:186` | `solve(ERC20, ERC20, address[], bytes, address)` | `requiresAuth` | MED — opaque `runData` passed to solver |
-| **`src/atomic-queue/AtomicSolverV5.sol:101`** | `finishSolve(bytes, address, ERC20, ERC20, uint256, uint256)` | `requiresAuth` + `_inSolveContext` + `_expectedQueue` + `initiator` | **LOW post-fix** (was CRITICAL pre-fix) |
-| `src/atomic-queue/AtomicSolverV5.sol:52` | `p2pSolve(...)` | `requiresAuth` + `nonReentrant` + `inSolveContext` | LOW — indirect `runData` via `abi.encode(msg.sender)` |
-| `src/atomic-queue/AtomicSolverV5.sol:73` | `redeemSolve(...)` | same | LOW — same as above |
-| `src/atomic-queue/AtomicSolverV2.sol:123` | `finishSolve(...)` | `requiresAuth` | **HIGH — same C-1 shape as pre-fix V3** (dormant, not deployed) |
-| `src/atomic-queue/AtomicSolver.sol:32` | `finishSolve(bytes, …)` | custom `approvedToCallFinishSolve` mapping | **CRITICAL — arbitrary `target.functionCallWithValue(data, value)`** (dormant, not deployed) |
-| `src/base/Roles/ManagerWithMerkleVerification.sol:132` | `manageVaultWithMerkleVerification(...)` | `requiresAuth` + merkle proofs + decoder sanitization | LOW — gated by merkle + sanitizer |
-| `src/base/Roles/ManagerWithMerkleVerification.sol:174` | `flashLoan(address, address[], uint256[], bytes)` | vault-only | LOW — inherits vault's auth gate |
-| `src/base/Roles/ManagerWithMerkleVerification.sol:199` | `receiveFlashLoan(…, bytes userData)` | Balancer-vault-only + pre-recorded hash | LOW — hash-gated |
-| `src/base/Roles/CrossChain/CrossChainTellerBase.sol:38,70` | `depositAndBridge / bridge` with `BridgeData.data` | `requiresAuth` | MED — opaque bridge metadata |
-| `src/micro-managers/DexAggregatorUManager.sol:82` | `swapWith1Inch(…, bytes data)` | `requiresAuth` + rate-limit + merkle proofs | **HIGH surface** (low risk if decoder tight; HIGH if decoder leaks) |
-| `src/micro-managers/DexSwapperUManager.sol:109…` | `swapWith{Balancer,Curve,UniV3}` with caller paths | same | MED — caller-supplied swap path, merkle-gated |
-| `src/migration/CellarMigrationAdaptor.sol:75` | `withdraw(…, bytes configurationData)` | Cellar delegatecall only | LOW — trivial `abi.decode(bool)` |
+| Contract                                                   | Function                                                      | Auth                                                                | Risk                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `src/base/BoringVault.sol:52`                              | `manage(address, bytes, uint256)`                             | `requiresAuth`                                                      | MED — arbitrary low-level call                                                               |
+| `src/base/BoringVault.sol:68`                              | `manage(address[], bytes[], uint256[])`                       | `requiresAuth`                                                      | MED — batched arbitrary calls                                                                |
+| `src/atomic-queue/AtomicQueue.sol:186`                     | `solve(ERC20, ERC20, address[], bytes, address)`              | `requiresAuth`                                                      | MED — opaque `runData` passed to solver                                                      |
+| **`src/atomic-queue/AtomicSolverV5.sol:101`**              | `finishSolve(bytes, address, ERC20, ERC20, uint256, uint256)` | `requiresAuth` + `_inSolveContext` + `_expectedQueue` + `initiator` | **LOW post-fix** (was CRITICAL pre-fix)                                                      |
+| `src/atomic-queue/AtomicSolverV5.sol:52`                   | `p2pSolve(...)`                                               | `requiresAuth` + `nonReentrant` + `inSolveContext`                  | LOW — indirect `runData` via `abi.encode(msg.sender)`                                        |
+| `src/atomic-queue/AtomicSolverV5.sol:73`                   | `redeemSolve(...)`                                            | same                                                                | LOW — same as above                                                                          |
+| `src/atomic-queue/AtomicSolverV2.sol:123`                  | `finishSolve(...)`                                            | `requiresAuth`                                                      | **HIGH — same C-1 shape as pre-fix V3** (dormant, not deployed)                              |
+| `src/atomic-queue/AtomicSolver.sol:32`                     | `finishSolve(bytes, …)`                                       | custom `approvedToCallFinishSolve` mapping                          | **CRITICAL — arbitrary `target.functionCallWithValue(data, value)`** (dormant, not deployed) |
+| `src/base/Roles/ManagerWithMerkleVerification.sol:132`     | `manageVaultWithMerkleVerification(...)`                      | `requiresAuth` + merkle proofs + decoder sanitization               | LOW — gated by merkle + sanitizer                                                            |
+| `src/base/Roles/ManagerWithMerkleVerification.sol:174`     | `flashLoan(address, address[], uint256[], bytes)`             | vault-only                                                          | LOW — inherits vault's auth gate                                                             |
+| `src/base/Roles/ManagerWithMerkleVerification.sol:199`     | `receiveFlashLoan(…, bytes userData)`                         | Balancer-vault-only + pre-recorded hash                             | LOW — hash-gated                                                                             |
+| `src/base/Roles/CrossChain/CrossChainTellerBase.sol:38,70` | `depositAndBridge / bridge` with `BridgeData.data`            | `requiresAuth`                                                      | MED — opaque bridge metadata                                                                 |
+| `src/micro-managers/DexAggregatorUManager.sol:82`          | `swapWith1Inch(…, bytes data)`                                | `requiresAuth` + rate-limit + merkle proofs                         | **HIGH surface** (low risk if decoder tight; HIGH if decoder leaks)                          |
+| `src/micro-managers/DexSwapperUManager.sol:109…`           | `swapWith{Balancer,Curve,UniV3}` with caller paths            | same                                                                | MED — caller-supplied swap path, merkle-gated                                                |
+| `src/migration/CellarMigrationAdaptor.sol:75`              | `withdraw(…, bytes configurationData)`                        | Cellar delegatecall only                                            | LOW — trivial `abi.decode(bool)`                                                             |
 
 Decoders in `src/base/DecodersAndSanitizers/**` (50+ files) are library-style: they receive arbitrary calldata for parsing/sanitization against a merkle root. Never called directly by end users, so no standalone attack surface.
 
@@ -241,10 +254,10 @@ Decoders in `src/base/DecodersAndSanitizers/**` (50+ files) are library-style: t
 
 Functions any address can call today.
 
-| Contract | Function | Mutates state / moves funds | Notes |
-|---|---|---|---|
-| `src/atomic-queue/AtomicQueue.sol:163` | `updateAtomicRequest(ERC20 offer, ERC20 want, uint64 deadline, uint96 offerAmount)` | ✅ mutates `userAtomicRequest[msg.sender]` | **Intentionally public** — user entry point. But has no validation (CT-3 F-2/F-3 griefing vector). |
-| `src/atomic-queue/AtomicSolver.sol:72` | `receiveFlashLoan(…)` | ✅ if `_solving` flag is set and caller is Balancer vault | Dormant file (see F-4). |
+| Contract                               | Function                                                                            | Mutates state / moves funds                               | Notes                                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/atomic-queue/AtomicQueue.sol:163` | `updateAtomicRequest(ERC20 offer, ERC20 want, uint64 deadline, uint96 offerAmount)` | ✅ mutates `userAtomicRequest[msg.sender]`                | **Intentionally public** — user entry point. But has no validation (CT-3 F-2/F-3 griefing vector). |
+| `src/atomic-queue/AtomicSolver.sol:72` | `receiveFlashLoan(…)`                                                               | ✅ if `_solving` flag is set and caller is Balancer vault | Dormant file (see F-4).                                                                            |
 
 Nothing else in `src/` is publicly callable without auth.
 
@@ -252,14 +265,15 @@ Nothing else in `src/` is publicly callable without auth.
 
 Functions that are auth-gated in source but wired open via deploy scripts.
 
-| Contract | Function | Wired public in |
-|---|---|---|
-| `TellerWithMultiAssetSupport.deposit` | **intentional** user entry point | `06_DeployRolesAuthority.s.sol:190`, `DeployPortLayerZero.s.sol:132`, `DeployPortProofOfConcept`, `DeployNucleusCrossChain` |
-| `TellerWithMultiAssetSupport.depositWithPermit` | same | same scripts |
-| `AtomicQueue.updateAtomicRequest` | same (intentional) | `DeployPortLayerZero.s.sol:145` |
-| `CrossChainTellerBase.depositAndBridge` / `bridge` | cross-chain user entry | `DeployPortLayerZero.s.sol:146`, `DeployNucleusCrossChain.s.sol:28-29` |
+| Contract                                           | Function                         | Wired public in                                                                                                             |
+| -------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `TellerWithMultiAssetSupport.deposit`              | **intentional** user entry point | `06_DeployRolesAuthority.s.sol:190`, `DeployPortLayerZero.s.sol:132`, `DeployPortProofOfConcept`, `DeployNucleusCrossChain` |
+| `TellerWithMultiAssetSupport.depositWithPermit`    | same                             | same scripts                                                                                                                |
+| `AtomicQueue.updateAtomicRequest`                  | same (intentional)               | `DeployPortLayerZero.s.sol:145`                                                                                             |
+| `CrossChainTellerBase.depositAndBridge` / `bridge` | cross-chain user entry           | `DeployPortLayerZero.s.sol:146`, `DeployNucleusCrossChain.s.sol:28-29`                                                      |
 
 **What's NOT public (verified via `CheckAuthConfiguration.s.sol`):**
+
 - `AtomicSolverV5.finishSolve` — moved to `QUEUE_ROLE` in commit `e137ca9`, now additionally in-contract gated by `_expectedQueue`.
 - `AtomicQueue.solve` — gated to `CAN_SOLVE_ROLE` / `SOLVER_ROLE`.
 - `BoringVault.manage` — gated to `MANAGER_ROLE`.
@@ -312,23 +326,23 @@ Commits `bfdcff0` and `9a97f84` are retained for audit trail but their effective
 
 **Folded into this branch** (low-risk defensive items originally scoped as follow-up PRs):
 
-| # | Scope | Landed in |
-|---|---|---|
-| 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` (CT-2 F-1 off-chain arm). | `96fc2af` |
-| 2 | `CheckAuthConfiguration`: `AtomicSolverV5.owner() == protocolAdmin`, operator can `rescue`, operator cannot `setRoleCapability`. | `96fc2af` |
-| 3 | Wire `OPERATOR_ROLE` to `rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
-| 4 | Delete `AtomicSolverV2.sol` (V2 in `36fabe3`); delete `AtomicSolver.sol` (V1 in Rafal follow-up); migration test repointed at `AtomicSolverV5`. | `36fabe3` + Rafal follow-up |
-| 6 | Validate `updateAtomicRequest` (deadline, balance, allowance). | `f3e2fd4` |
+| #   | Scope                                                                                                                                           | Landed in                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| 1   | Remove `setRoleCapability` from `OPERATOR_ROLE` (CT-2 F-1 off-chain arm).                                                                       | `96fc2af`                   |
+| 2   | `CheckAuthConfiguration`: `AtomicSolverV5.owner() == protocolAdmin`, operator can `rescue`, operator cannot `setRoleCapability`.                | `96fc2af`                   |
+| 3   | Wire `OPERATOR_ROLE` to `rescue.selector` in `ConfigureAtomicRoles`.                                                                            | `96fc2af`                   |
+| 4   | Delete `AtomicSolverV2.sol` (V2 in `36fabe3`); delete `AtomicSolver.sol` (V1 in Rafal follow-up); migration test repointed at `AtomicSolverV5`. | `36fabe3` + Rafal follow-up |
+| 6   | Validate `updateAtomicRequest` (deadline, balance, allowance).                                                                                  | `f3e2fd4`                   |
 
 **Deliberately kept out** (each merits its own PR):
 
-| # | Scope | Reason kept out |
-|---|---|---|
-| 5 | `minSolverProfit` param on `redeemSolve` (CT-3 F-1). | Changes solver selector → breaks keeper bots. Needs rollout plan. |
-| 7 | I-2 skip-and-emit in `AtomicQueue.solve`. | Changes batch semantics from all-or-nothing to partial-fill. Keeper-breaking. |
-| 8 | Extract deploy-role wiring into shared library + drive regressions off it. | Medium refactor of 4+ deploy scripts. Belongs in cleanup PR. |
-| 9 | Solidity 0.8.24 + cancun, transient storage for `_inSolveContext` / `_expectedQueue`. | Repo-wide pragma bump. Gas-only. |
-| 10 | Independent audit (Spearbit / Hexens / Cyfrin). | Not a code change. **Recommended pre-prod.** |
+| #   | Scope                                                                                 | Reason kept out                                                               |
+| --- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 5   | `minSolverProfit` param on `redeemSolve` (CT-3 F-1).                                  | Changes solver selector → breaks keeper bots. Needs rollout plan.             |
+| 7   | I-2 skip-and-emit in `AtomicQueue.solve`.                                             | Changes batch semantics from all-or-nothing to partial-fill. Keeper-breaking. |
+| 8   | Extract deploy-role wiring into shared library + drive regressions off it.            | Medium refactor of 4+ deploy scripts. Belongs in cleanup PR.                  |
+| 9   | Solidity 0.8.24 + cancun, transient storage for `_inSolveContext` / `_expectedQueue`. | Repo-wide pragma bump. Gas-only.                                              |
+| 10  | Independent audit (Spearbit / Hexens / Cyfrin).                                       | Not a code change. **Recommended pre-prod.**                                  |
 
 ---
 
@@ -341,4 +355,4 @@ Commits `bfdcff0` and `9a97f84` are retained for audit trail but their effective
 
 ---
 
-*Report compiled from live agents and a full `src/` walk. All line numbers verified against commit `fec065a` on 2026-04-22.*
+_Report compiled from live agents and a full `src/` walk. All line numbers verified against commit `fec065a` on 2026-04-22._

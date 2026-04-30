@@ -151,7 +151,7 @@ contract PortPoCTest is Test, DeployPortProofOfConceptScript {
         atomicQueue.updateAtomicRequest(boringVault, ERC20(WETH), req.deadline, req.offerAmount);
         vm.stopPrank();
 
-        /// Should suceed
+        /// Should succeed
         vm.startPrank(hexTrust);
         atomicSolverV3.redeemSolve(atomicQueue, boringVault, WETH, users, 0, type(uint256).max, teller);
         vm.stopPrank();

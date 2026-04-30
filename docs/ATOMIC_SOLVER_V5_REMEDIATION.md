@@ -15,26 +15,26 @@
 
 Status is as of the `security/atomicsolverv3-remediation` branch.
 
-| ID  | Severity | Title                                                                 | Line(s) in src | Valid? | Status |
-|-----|----------|-----------------------------------------------------------------------|----------------|--------|--------|
-| C-1 | CRITICAL | Direct `finishSolve` call drains pre-approvals                         | 101–123        | ✅ Yes | ✅ Fixed — in-contract `_inSolveContext` + `_expectedQueue` + `approvedQueues` whitelist (§3.1, §3.12) |
-| H-1 | HIGH     | Missing `nonReentrant` contradicts NatSpec (ERC777 reentrancy)         | 52, 73, 94–99  | ✅ Yes | ✅ Fixed — solmate `ReentrancyGuard` + `nonReentrant` on both outer paths (§3.2) |
-| H-2 | HIGH     | `safeApprove` without zero-reset breaks permanently on USDT            | 160, 194       | ✅ Yes | ✅ Fixed — zero-reset prepended at both approval sites (§3.3) |
-| H-3 | HIGH     | Fee-on-transfer `want` → approval overcommits contract balance         | 151+160, 188+194 | ✅ Yes | ✅ Fixed — `balanceOf` delta reconcile + early revert (§3.4) |
-| M-1 | MEDIUM   | CEI violation in `_redeemSolve` (`bulkWithdraw` before `safeTransferFrom`) | 188 vs 191 | ✅ Yes | ✅ Fixed — redesigned to send proceeds to self, pay solver profit last (§3.5) |
-| M-2 | MEDIUM   | Authority misconfig is single point of failure                         | —              | ✅ Yes | ✅ Fixed — `_inSolveContext` + `_expectedQueue` + `approvedQueues` whitelist are in-contract invariants, independent of Authority (§3.1, §3.12) |
-| M-3 | MEDIUM   | Zero-address owner not guarded in constructor                          | 45             | ✅ Yes | ✅ Fixed — constructor revert on `_owner == address(0)` (§3.6) |
-| M-4 | MEDIUM   | `wantApprovalAmount` unbounded vs `bulkWithdraw` proceeds              | 185–188        | ✅ Yes | ✅ Fixed — capture `assetsOut`, revert on shortfall with explicit error (§3.7) |
-| L-1 | LOW      | Unused `eETH` / `weETH` constants                                       | 19–20          | ✅ Yes | ✅ Fixed — constants removed (§3.8) |
-| L-2 | LOW      | `AlreadyInSolveContext` error declared but never emitted                | 37             | ✅ Yes | ✅ Fixed — wired up in `inSolveContext` modifier (§3.9 / §3.1) |
-| I-1 | INFO     | No token recovery mechanism                                             | —              | ✅ Yes | ✅ Fixed — `rescue(token, amount)` added; recipient hard-coded to `owner()`, `requiresAuth`, blocked mid-solve, emits event (§3.10) |
-| I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                        | —              | ✅ Yes | ✅ Partially fixed — `updateAtomicRequest` now validates deadline/balance/allowance at submission (`f3e2fd4`); keeper-breaking `solve` skip-and-emit intentionally scoped to a separate PR (§3.11) |
+| ID  | Severity | Title                                                                      | Line(s) in src   | Valid? | Status                                                                                                                                                                                             |
+| --- | -------- | -------------------------------------------------------------------------- | ---------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-1 | CRITICAL | Direct `finishSolve` call drains pre-approvals                             | 101–123          | ✅ Yes | ✅ Fixed — in-contract `_inSolveContext` + `_expectedQueue` + `approvedQueues` whitelist (§3.1, §3.12)                                                                                             |
+| H-1 | HIGH     | Missing `nonReentrant` contradicts NatSpec (ERC777 reentrancy)             | 52, 73, 94–99    | ✅ Yes | ✅ Fixed — solmate `ReentrancyGuard` + `nonReentrant` on both outer paths (§3.2)                                                                                                                   |
+| H-2 | HIGH     | `safeApprove` without zero-reset breaks permanently on USDT                | 160, 194         | ✅ Yes | ✅ Fixed — zero-reset prepended at both approval sites (§3.3)                                                                                                                                      |
+| H-3 | HIGH     | Fee-on-transfer `want` → approval overcommits contract balance             | 151+160, 188+194 | ✅ Yes | ✅ Fixed — `balanceOf` delta reconcile + early revert (§3.4)                                                                                                                                       |
+| M-1 | MEDIUM   | CEI violation in `_redeemSolve` (`bulkWithdraw` before `safeTransferFrom`) | 188 vs 191       | ✅ Yes | ✅ Fixed — redesigned to send proceeds to self, pay solver profit last (§3.5)                                                                                                                      |
+| M-2 | MEDIUM   | Authority misconfig is single point of failure                             | —                | ✅ Yes | ✅ Fixed — `_inSolveContext` + `_expectedQueue` + `approvedQueues` whitelist are in-contract invariants, independent of Authority (§3.1, §3.12)                                                    |
+| M-3 | MEDIUM   | Zero-address owner not guarded in constructor                              | 45               | ✅ Yes | ✅ Fixed — constructor revert on `_owner == address(0)` (§3.6)                                                                                                                                     |
+| M-4 | MEDIUM   | `wantApprovalAmount` unbounded vs `bulkWithdraw` proceeds                  | 185–188          | ✅ Yes | ✅ Fixed — capture `assetsOut`, revert on shortfall with explicit error (§3.7)                                                                                                                     |
+| L-1 | LOW      | Unused `eETH` / `weETH` constants                                          | 19–20            | ✅ Yes | ✅ Fixed — constants removed (§3.8)                                                                                                                                                                |
+| L-2 | LOW      | `AlreadyInSolveContext` error declared but never emitted                   | 37               | ✅ Yes | ✅ Fixed — wired up in `inSolveContext` modifier (§3.9 / §3.1)                                                                                                                                     |
+| I-1 | INFO     | No token recovery mechanism                                                | —                | ✅ Yes | ✅ Fixed — `rescue(token, amount)` added; recipient hard-coded to `owner()`, `requiresAuth`, blocked mid-solve, emits event (§3.10)                                                                |
+| I-2 | INFO     | Batch failure isolation depends on `AtomicQueue`                           | —                | ✅ Yes | ✅ Partially fixed — `updateAtomicRequest` now validates deadline/balance/allowance at submission (`f3e2fd4`); keeper-breaking `solve` skip-and-emit intentionally scoped to a separate PR (§3.11) |
 
 **All 12 findings addressed.** I-2 is split: the submission-time half (`updateAtomicRequest` validation) ships on this branch; the `AtomicQueue.solve` skip-and-emit half is intentionally scheduled as its own PR because it changes batch semantics that keeper bots rely on — shipping it here would silently break integrators.
 
 Additionally, one **HIGH-severity finding surfaced by clearpool team review** (CT-2/F-1 — rogue queue via OPERATOR_ROLE) was identified and fixed in both the contract (`125abbb`) and the deploy scripts (`96fc2af`). See §3.12 and `ATOMIC_SOLVER_V5_CLEARPOOL_REVIEW.md`.
 
-All line numbers refer to `src/atomic-queue/AtomicSolverV5.sol` *pre-branch*; the report's `sc.sol` numbering is ~3 off (the report appears to have been generated against a stripped copy without the license header).
+All line numbers refer to `src/atomic-queue/AtomicSolverV5.sol` _pre-branch_; the report's `sc.sol` numbering is ~3 off (the report appears to have been generated against a stripped copy without the license header).
 
 ---
 
@@ -44,23 +44,24 @@ We checked. Upstream `Veda-Labs/boring-vault` (and the historical `Se7en-Seas/bo
 
 On the exact vulnerability class this branch addresses, **V4 is weaker than our patched V3:**
 
-| Protection | Our patched V3 | Upstream V4 |
-|---|---|---|
-| `requiresAuth` on `finishSolve` | ✅ | ✅ |
-| `initiator == address(this)` | ✅ | ✅ |
-| `msg.sender == _expectedQueue` (rogue-queue defense) | ✅ | ❌ |
-| `_inSolveContext` lock (in-contract reentry / provenance guard) | ✅ | ❌ |
-| `ReentrancyGuard` / `nonReentrant` on solve entrypoints | ✅ | ❌ (V4 dropped it) |
-| `rescue` blocked while solve in-flight | ✅ | ❌ |
-| FoT-token balance-delta reconciliation | ✅ | ❌ |
-| `RedeemProceedsShortfall` economic check | ✅ | ❌ |
-| USDT-style zero-reset before `safeApprove` | ✅ | ❌ |
-| Approve-before-outbound-transfer (CEI hardening) | ✅ | ❌ |
-| Constructor `_owner != address(0)` | ✅ | ❌ |
+| Protection                                                      | Our patched V3 | Upstream V4        |
+| --------------------------------------------------------------- | -------------- | ------------------ |
+| `requiresAuth` on `finishSolve`                                 | ✅             | ✅                 |
+| `initiator == address(this)`                                    | ✅             | ✅                 |
+| `msg.sender == _expectedQueue` (rogue-queue defense)            | ✅             | ❌                 |
+| `_inSolveContext` lock (in-contract reentry / provenance guard) | ✅             | ❌                 |
+| `ReentrancyGuard` / `nonReentrant` on solve entrypoints         | ✅             | ❌ (V4 dropped it) |
+| `rescue` blocked while solve in-flight                          | ✅             | ❌                 |
+| FoT-token balance-delta reconciliation                          | ✅             | ❌                 |
+| `RedeemProceedsShortfall` economic check                        | ✅             | ❌                 |
+| USDT-style zero-reset before `safeApprove`                      | ✅             | ❌                 |
+| Approve-before-outbound-transfer (CEI hardening)                | ✅             | ❌                 |
+| Constructor `_owner != address(0)`                              | ✅             | ❌                 |
 
-V4's own NatSpec still asserts *"nonReentrant is not needed because ... msg.sender is the queue"* — the exact reasoning our clearpool team exercise identified as wrong (CT-2/F-1). If an OPERATOR ever grants `QUEUE_ROLE` to a rogue queue, V4 is drained; our patched V3 is not.
+V4's own NatSpec still asserts _"nonReentrant is not needed because ... msg.sender is the queue"_ — the exact reasoning our clearpool team exercise identified as wrong (CT-2/F-1). If an OPERATOR ever grants `QUEUE_ROLE` to a rogue queue, V4 is drained; our patched V3 is not.
 
 Two further blockers rule V4 out:
+
 - **License.** V4 is released under Veda's `SEL-1.0` "TEST ONLY – NO COMMERCIAL USE" license. Our fork is Apache-2.0; adopting V4 into a production fork is not permitted.
 - **Pragma.** V4 is 0.8.21; this codebase is pinned 0.8.22.
 
@@ -78,13 +79,13 @@ The commit **did not modify the contract**. It only changed deployment/authority
 
 ### Why this fixes C-1 (narrowly)
 
-Before: `setPublicCapability(atomicSolver, finishSolve.selector, true)` meant `requiresAuth` let *anybody* call `finishSolve`. The attacker then trivially bypassed the one in-contract check by supplying `initiator = address(atomicSolverV3)` in calldata.
+Before: `setPublicCapability(atomicSolver, finishSolve.selector, true)` meant `requiresAuth` let _anybody_ call `finishSolve`. The attacker then trivially bypassed the one in-contract check by supplying `initiator = address(atomicSolverV3)` in calldata.
 
 After: `finishSolve` is reachable only by addresses holding `QUEUE_ROLE`. Only `config.atomicQueue` holds that role, and `AtomicQueue.solve()` only calls back into the solver it was invoked from — which it only gets to via `p2pSolve` / `redeemSolve`, both of which are themselves `requiresAuth`-gated to trusted solver bots.
 
 ### Why this fix is **not sufficient on its own**
 
-It closes the specific exploit path *but leaves the contract dependent on a correct off-chain authority config*. Any future misconfiguration — a second queue accidentally granted `QUEUE_ROLE`, a wildcard role, a compromised `ConfigureAtomicRoles` script — re-opens the drain. There is **no in-contract invariant** asserting "finishSolve can only run inside an active solve()". That is what M-2 calls out, and that is what the dead `AlreadyInSolveContext` error (L-2) was *supposed* to guard. Treat the current fix as a hotfix and schedule §3.1 as the real remediation.
+It closes the specific exploit path _but leaves the contract dependent on a correct off-chain authority config_. Any future misconfiguration — a second queue accidentally granted `QUEUE_ROLE`, a wildcard role, a compromised `ConfigureAtomicRoles` script — re-opens the drain. There is **no in-contract invariant** asserting "finishSolve can only run inside an active solve()". That is what M-2 calls out, and that is what the dead `AlreadyInSolveContext` error (L-2) was _supposed_ to guard. Treat the current fix as a hotfix and schedule §3.1 as the real remediation.
 
 ---
 
@@ -121,7 +122,7 @@ function finishSolve(...) external requiresAuth {
 }
 ```
 
-**Why it works.** `finishSolve` succeeds only while a solve is in flight. Even if Authority ever grants `finishSolve` to an attacker role, direct calls revert — `_inSolveContext == 0` outside a solve. See also §3.12 which hardens this further against the *rogue-queue-inside-a-live-solve* case.
+**Why it works.** `finishSolve` succeeds only while a solve is in flight. Even if Authority ever grants `finishSolve` to an attacker role, direct calls revert — `_inSolveContext == 0` outside a solve. See also §3.12 which hardens this further against the _rogue-queue-inside-a-live-solve_ case.
 
 **Research citation.** The pattern matches the canonical callback-guard in solmate consumers (Yield, Sense, Morpho pre-Blue) — an in-contract invariant that makes the contract's security independent of the mutable external Authority. Per Trail of Bits 2025 maturity guidance, callback-heavy contracts should not rely on external role wiring alone.
 
@@ -170,7 +171,7 @@ if (received < wantApprovalAmount) {
 }
 ```
 
-**Why it works.** Failing loud-and-early at the start of the solve is strictly better than approving a short amount and letting the revert happen mid-batch. Using `balanceOf` *delta* (not raw) correctly handles pre-existing dust — important for the `rescue` path and for residue from prior FoT-rejected attempts.
+**Why it works.** Failing loud-and-early at the start of the solve is strictly better than approving a short amount and letting the revert happen mid-batch. Using `balanceOf` _delta_ (not raw) correctly handles pre-existing dust — important for the `rescue` path and for residue from prior FoT-rejected attempts.
 
 **Research citation.** The delta-reconcile pattern is canonical across Uniswap V2/V3 periphery, Curve, Balancer. ChainSecurity's "Hitchhiker's Guide to Rebasing Tokens" explicitly distinguishes FoT (where the contract receives less than transferred) from rebasing (where `balanceOf` drifts between reads) — our delta pattern handles both correctly.
 
@@ -202,6 +203,7 @@ if (solverProfit != 0) want.safeTransfer(solver, solverProfit);
 ```
 
 **Why it works.**
+
 - CEI is now clean — `bulkWithdraw` sends proceeds into our own custody; no inbound `transferFrom` after an external call.
 - FoT is caught by the `received < wantApprovalAmount` branch (M-1+H-3 together).
 - Under-proceed attacks are caught by the `assetsOut < wantApprovalAmount` branch (M-4).
@@ -284,7 +286,7 @@ for (uint256 i; i < users.length; ++i) {
 4. Checks inside `finishSolve` all pass: `_inSolveContext == 1` (we ARE in a live solve), `msg.sender == _expectedQueue` (the attacker IS the initiator, so `_expectedQueue == rogueQueue`), `initiator == address(this)`, `requiresAuth`.
 5. `_p2pSolve` runs attacker runData → drains any address with standing approval.
 
-**Layer 1 — `_expectedQueue` snapshot (`125abbb`).** Catches a *sibling* `QUEUE_ROLE` address trying to intercept a callback from a solve that was initiated with a *different* queue. Useful but **does not** close the real attack above — when the attacker is the one calling `p2pSolve(rogueQueue, …)`, `_expectedQueue` is set to `rogueQueue` and the check passes. This was a partial mitigation that overstated itself in the first draft of the report.
+**Layer 1 — `_expectedQueue` snapshot (`125abbb`).** Catches a _sibling_ `QUEUE_ROLE` address trying to intercept a callback from a solve that was initiated with a _different_ queue. Useful but **does not** close the real attack above — when the attacker is the one calling `p2pSolve(rogueQueue, …)`, `_expectedQueue` is set to `rogueQueue` and the check passes. This was a partial mitigation that overstated itself in the first draft of the report.
 
 **Layer 2 — `approvedQueues` whitelist (`5ae4100`).** The real fix. An explicit on-contract mapping of legitimate queues, owner-gated via `requiresAuth`:
 
@@ -326,6 +328,7 @@ The `initiator` check is now **vestigial** — `_inSolveContext + _expectedQueue
 **Research citation.** The two-layer pattern mirrors the lesson from ERC-3156 § Security Considerations (flashloan receivers must verify BOTH lender identity AND that the borrower itself initiated) plus the "explicit whitelist" pattern used by Seaport Conduit (a conduit maintains an explicit list of which channels can invoke it, independent of role grants on the controller).
 
 **Regression tests.**
+
 - `test_rogueQueueDirectFinishSolve_blockedByNotInSolveContext` — rogue `QUEUE_ROLE` address calls `finishSolve` directly with no live solve; reverts at `NotInSolveContext`.
 - `test_rogueQueue_endToEnd_blockedByApprovedQueueWhitelist` — **the full attack**. Deploys a `RogueQueue` mock, mints `QUEUE_ROLE` on it via a simulated compromised OPERATOR, has the attacker invoke `p2pSolve(rogueQueue, …)`. Asserts revert at `UnapprovedQueue` with victim funds untouched.
 
@@ -371,21 +374,20 @@ Commits `bfdcff0` / `9a97f84` are retained for audit trail; their effective diff
 
 **Folded into this branch** (originally scoped as separate PRs but low-risk and defensive):
 
-| # | Scope | Landed in |
-|---|---|---|
-| 1 | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol`. | `96fc2af` |
-| 2 | Add `CheckAuthConfiguration` assertions: solver `owner() == protocolAdmin`, operator can call `rescue`, operator CANNOT `setRoleCapability`. | `96fc2af` |
-| 3 | Wire `OPERATOR_ROLE` to `AtomicSolverV5.rescue.selector` in `ConfigureAtomicRoles`. | `96fc2af` |
-| 4 | Delete `AtomicSolverV2.sol` (zero deploy references) — `36fabe3`. Delete `AtomicSolver.sol` (V1) — Rafal follow-up commit; the `EtherFiLiquid1Migration` test only constructed V1 as set-dressing (never invoked any vulnerable surface) and was repointed at `AtomicSolverV5`. | shipped |
-| 6 | Validate `updateAtomicRequest` preconditions (deadline, balance, allowance) in `AtomicQueue`. | `f3e2fd4` |
+| #   | Scope                                                                                                                                                                                                                                                                           | Landed in |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 1   | Remove `setRoleCapability` from `OPERATOR_ROLE` in `06_DeployRolesAuthority.s.sol`.                                                                                                                                                                                             | `96fc2af` |
+| 2   | Add `CheckAuthConfiguration` assertions: solver `owner() == protocolAdmin`, operator can call `rescue`, operator CANNOT `setRoleCapability`.                                                                                                                                    | `96fc2af` |
+| 3   | Wire `OPERATOR_ROLE` to `AtomicSolverV5.rescue.selector` in `ConfigureAtomicRoles`.                                                                                                                                                                                             | `96fc2af` |
+| 4   | Delete `AtomicSolverV2.sol` (zero deploy references) — `36fabe3`. Delete `AtomicSolver.sol` (V1) — Rafal follow-up commit; the `EtherFiLiquid1Migration` test only constructed V1 as set-dressing (never invoked any vulnerable surface) and was repointed at `AtomicSolverV5`. | shipped   |
+| 6   | Validate `updateAtomicRequest` preconditions (deadline, balance, allowance) in `AtomicQueue`.                                                                                                                                                                                   | `f3e2fd4` |
 
 **Deliberately kept out** (breaking-API or cross-cutting; each merits its own PR):
 
-| # | Scope | Why not here |
-|---|---|---|
-| 5 | Add `minSolverProfit` param to `redeemSolve`. | Changes the solver selector — breaks every keeper bot. Needs ops coordination + keeper rollout plan. |
-| 7 | Implement I-2 (skip-and-emit) in `AtomicQueue.solve`. | Changes batch semantics from all-or-nothing to partial-fill — keepers' retry logic depends on the current semantics. Needs a migration plan or a separate `solveWithSkip` entry point. |
-| 8 | Extract deploy-role wiring into a shared library used by every deploy script + regression test. | Cross-cutting refactor of 4+ deploy scripts. Higher bug risk than benefit in a security PR; belongs in a follow-up cleanup. |
-| 9 | Upgrade to Solidity 0.8.24 + `evm_version = cancun`; convert `_inSolveContext` + `_expectedQueue` to transient storage (EIP-1153). | Repo-wide pragma bump affecting every contract. Gas-only win (~2k per solve). |
-| 10 | Commission an independent audit (Spearbit / Hexens / Cyfrin) before unpausing production vaults. | Not a code change. **Still recommended pre-prod** — per the hack report's own recommendation #6. |
-
+| #   | Scope                                                                                                                              | Why not here                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5   | Add `minSolverProfit` param to `redeemSolve`.                                                                                      | Changes the solver selector — breaks every keeper bot. Needs ops coordination + keeper rollout plan.                                                                                   |
+| 7   | Implement I-2 (skip-and-emit) in `AtomicQueue.solve`.                                                                              | Changes batch semantics from all-or-nothing to partial-fill — keepers' retry logic depends on the current semantics. Needs a migration plan or a separate `solveWithSkip` entry point. |
+| 8   | Extract deploy-role wiring into a shared library used by every deploy script + regression test.                                    | Cross-cutting refactor of 4+ deploy scripts. Higher bug risk than benefit in a security PR; belongs in a follow-up cleanup.                                                            |
+| 9   | Upgrade to Solidity 0.8.24 + `evm_version = cancun`; convert `_inSolveContext` + `_expectedQueue` to transient storage (EIP-1153). | Repo-wide pragma bump affecting every contract. Gas-only win (~2k per solve).                                                                                                          |
+| 10  | Commission an independent audit (Spearbit / Hexens / Cyfrin) before unpausing production vaults.                                   | Not a code change. **Still recommended pre-prod** — per the hack report's own recommendation #6.                                                                                       |
