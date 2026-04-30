@@ -312,7 +312,7 @@ Third-pass work added three parallel reviews:
 | N-5             | LOW/MED  | Verified already in place at `ManagerWithMerkleVerification.sol:214` — `msg.sender != address(balancerVault)` revert.                                                                         | verified  |
 | N-6             | LOW      | `MultiChainTellerBase.addChain` / `allowMessagesFromChain` now require `targetTeller != address(0)`                                                                                           | `94592cb` |
 | T-2 refine      | HIGH     | `bulkWithdraw` now gates both `msg.sender` AND `_to`                                                                                                                                          | `94592cb` |
-| A-3 refine      | MEDIUM   | Deviation check extended across pegged↔non-pegged transitions                                                                                                                                | `94592cb` |
+| A-3 refine      | MEDIUM   | Deviation check extended across pegged↔non-pegged transitions                                                                                                                                 | `94592cb` |
 | R-4 (pragmatic) | HIGH     | `CheckAuthConfiguration` now asserts `owner() == protocolAdmin` for every core contract — catches typo'd `transferOwnership` at deploy check.                                                 | `ba14f45` |
 
 **Still deferred (design-track, per team decision):**
