@@ -141,6 +141,9 @@ jobs:
         with:
           version: nightly
 
+      - name: Build with Foundry
+        run: forge build
+
       - name: Run Slither
         run: |
           # Filter out lib / node_modules / test / script paths, plus a small set of
