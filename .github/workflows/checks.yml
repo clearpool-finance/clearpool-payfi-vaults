@@ -96,10 +96,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Use Node.js ${{ matrix.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node_version }}
+
       - name: Run solhint
         run: |
-          yarn install
-          yarn solhint
+          npm ci
+          npm run solhint
 
   slither:
     runs-on: ${{ matrix.os }}
@@ -134,7 +139,7 @@ jobs:
           node-version: ${{ matrix.node_version }}
 
       - name: Install npm deps
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
