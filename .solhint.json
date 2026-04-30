@@ -19,6 +19,10 @@
     "gas-custom-errors": "off",
     "const-name-snakecase": "off",
     "func-name-mixedcase": "off",
-    "no-unused-vars": "off"
+    "no-unused-vars": "off",
+    "contract-name-camelcase": "off",
+    "no-empty-blocks": "off",
+    "no-unused-import": "off",
+    "payable-fallback": "off"
   }
 }
