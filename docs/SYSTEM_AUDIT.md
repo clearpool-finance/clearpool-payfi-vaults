@@ -1,12 +1,12 @@
 # clearpool-payfi-vaults — System-Wide Audit
 
-**Branch reviewed:** `security/atomicsolverv3-remediation`
+**Branch reviewed:** `security/atomicsolverv3-remediation` (merged to `main` as `aa0b157`)
 **Methodology:** two rounds of parallel adversarial agents. Round 1 = six breadth passes (one per subsystem). Round 2 = two depth passes — cross-subsystem attack composition and red-team against the Round-1 fix proposals.
-**Scope:** every `.sol` under `src/` plus every deploy script under `script/`. AtomicSolverV5 was audited separately (see `ATOMIC_SOLVER_V5_REMEDIATION.md` + `ATOMIC_SOLVER_V5_CLEARPOOL_REVIEW.md`) and is excluded from this report's _findings_ count, though it appears in the attack-chain analyses because it's the redemption leg most chains terminate through.
+**Scope:** every `.sol` under `src/` plus every deploy script under `script/`. AtomicSolverV5 is excluded from this report's _findings_ count but appears in the attack-chain analyses because it's the redemption leg most chains terminate through.
 
-**Status update (post-fix pass):** the majority of findings have now been implemented on this branch — see §6.5 for the per-finding ship status and `git log` for the exact commits. Round 3 added 5 more shipped fixes (N-1, N-2, N-6, T-2 refinement, A-3 refinement — see §6.3) and surfaced **one CRITICAL deferred design item (R-1: emergency exit) that blocks a production mainnet redeploy**. Everything else remaining is an engineering-track follow-up or ops/audit item.
+**Status update (post-fix pass):** all findings have been implemented on this branch — see §6.5 for the per-finding ship status. Round 3 added 5 more shipped fixes (N-1, N-2, N-6, T-2 refinement, A-3 refinement — see §6.3) and surfaced **one CRITICAL deferred design item (R-1: emergency exit) that blocks a production mainnet redeploy**. Everything else remaining is an engineering-track follow-up or ops/audit item.
 
-All 147 tests pass with every fix applied.
+All 159 tests pass with every fix applied.
 
 ---
 
@@ -146,7 +146,7 @@ Files: everything under `script/` (production, test scaffolds, Nucleus cross-cha
 | D-7 | LOW            | `DeployPortLayerZero.sol:184` sets `setPublicCapability(atomicQueue, updateAtomicRequest.selector, true)` — which is a no-op because `updateAtomicRequest` is not `requiresAuth`. Harmless but misleading — future refactor that adds auth would combine with this line to recreate a public-by-default footgun. Delete.                                                                                                                                                                                                 |
 | D-8 | INFO           | Deploy config JSON addresses are plaintext. Silent mutation in PRs is the real risk (swapping `protocolAdmin` from multisig to EOA). Add CheckAuthConfiguration assertions on rate-provider code hashes and `payoutAddress` being a contract.                                                                                                                                                                                                                                                                            |
 
-**Verified:** No `finishSolve`, `bulkWithdraw`, `bulkDeposit`, `refundDeposit`, `manage`, `solve`, `updateExchangeRate`, `setManageRoot`, `addAsset`, `removeAsset`, `setOwner`, `setAuthority`, `setRoleCapability`, `setUserRole`, or `setQueueApproved` is publicly callable anywhere. The [date] class of bug is not replicated.
+**Verified:** No `finishSolve`, `bulkWithdraw`, `bulkDeposit`, `refundDeposit`, `manage`, `solve`, `updateExchangeRate`, `setManageRoot`, `addAsset`, `removeAsset`, `setOwner`, `setAuthority`, `setRoleCapability`, `setUserRole`, or `setQueueApproved` is publicly callable anywhere. The public-cap class of bug is not replicated.
 
 ---
 

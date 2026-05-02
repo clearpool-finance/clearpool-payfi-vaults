@@ -36,12 +36,12 @@ contract RogueQueue {
     }
 }
 
-/// @title Regression tests for the [date] AtomicSolverV5 auth misconfiguration
+/// @title Regression tests for the AtomicSolverV5 auth wiring
 /// @notice These tests mirror the auth wiring produced by
 ///         `script/ConfigureAtomicRoles.s.sol::_configure()`. If any future edit silently
 ///         reverts the `setRoleCapability(QUEUE_ROLE, ...)` back to `setPublicCapability(...)`
 ///         for `finishSolve`, the CORRECT_wiring tests will fail. The BROKEN_wiring tests
-///         document the exact exploit and serve as proof-of-effectiveness of the fix.
+///         document the exact attack class and serve as proof-of-effectiveness of the fix.
 contract AtomicSolverAuthRegression is Test {
     // Mirrors Constants.sol + ConfigureAtomicRoles.s.sol
     uint8 internal constant STRATEGIST_ROLE = 1;
@@ -86,7 +86,7 @@ contract AtomicSolverAuthRegression is Test {
         accountant.setAuthority(authority);
         teller.setAuthority(authority);
 
-        // The victim has approved the solver (standard operator pattern that existed pre-incident).
+        // The victim has approved the solver (standard operator pattern).
         vm.prank(victim);
         want.approve(address(solver), type(uint256).max);
         want.mint(victim, 1_000_000e18);

@@ -52,7 +52,7 @@ contract ExposedCrossChainTeller is CrossChainTellerBase {
     function _beforeBridge(BridgeData calldata) internal pure override { }
 }
 
-/// @notice Negative-path tests for the post-incident remediation gates that lacked direct
+/// @notice Negative-path tests for the security-tightening gates that lacked direct
 /// regression coverage in the existing suite. Each test exercises one revert path that
 /// `CheckAuthConfiguration` / on-chain logic relies on.
 contract RemediationGatesTest is Test {

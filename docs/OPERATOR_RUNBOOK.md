@@ -4,7 +4,7 @@ Operational policy for anyone holding a key against a clearpool-payfi-vaults dep
 
 ## 1. Approval ceiling
 
-Borrowers and any wallet that submits an `AtomicRequest` MUST NOT grant `type(uint256).max` allowance to `AtomicSolverV5`. The [date] incident's blast radius was bounded by exactly one victim's pre-approval — anyone with an unbounded approval to V3 was drainable. The contract-side fixes (whitelisted queues, `_inSolveContext`, USDT zero-reset) close every known on-chain pivot, but a compromised solve key can still push solves through a legitimate queue, and an unbounded approval would let it sweep the approver's full balance.
+Borrowers and any wallet that submits an `AtomicRequest` MUST NOT grant `type(uint256).max` allowance to `AtomicSolverV5`. The contract-side fixes (whitelisted queues, `_inSolveContext`, USDT zero-reset) close every known on-chain pivot, but a compromised solve key can still push solves through a legitimate queue, and an unbounded approval would let it sweep the approver's full balance. Bounded approvals cap the blast radius of any future compromise to a single batch.
 
 ### Per-deployment ceiling
 
@@ -25,7 +25,7 @@ Not on-chain — the solver can't tell what the operator considers "expected bat
 
 1. **Onboarding** — every borrower / supplier that integrates with the queue receives this policy and a sample approval transaction with a bounded value.
 2. **Off-chain monitor** — subscribe to `IERC20.Approval(_, atomicSolver, value)` for every supported asset on every chain. Alert if `value == type(uint256).max` or `value > ceiling`. Triage within one business day; reach the approver and have them re-approve with the bounded amount. **Caveat**: `Approval` is _not_ emitted by EIP-2612 `permit` paths or Permit2-style off-chain signature flows — those grant allowance via signature without on-chain `approve`. If the queue's integration ever accepts permit-based approvals, add a parallel signature monitor (or require all approvals to go through on-chain `approve` in the borrower onboarding doc).
-3. **Pre-deployment revocation sweep** — on every chain that previously held a vulnerable `AtomicSolverV3`, confirm pre-incident approvals have been revoked **before** announcing V5. Cross-chain status table lives in `PRE_AUDIT_CHECKLIST.md`.
+3. **Pre-deployment revocation sweep** — on every chain that previously held an `AtomicSolverV3`, confirm prior approvals have been revoked **before** announcing V5. Cross-chain status table lives in `PRE_AUDIT_CHECKLIST.md`.
 
 ## 2. Key custody
 

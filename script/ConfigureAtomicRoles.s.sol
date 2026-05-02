@@ -127,8 +127,8 @@ contract ConfigureAtomicRoles is BaseScript {
 
         // Allow AtomicQueue (via QUEUE_ROLE) to call finishSolve on AtomicSolver.
         // MUST be role-gated — finishSolve decodes caller-supplied runData into a `solver`
-        // address then `safeTransferFrom(solver, ...)`, so making it public lets any address
-        // drain any wallet that has approved AtomicSolver. See [date] incident.
+        // address then `safeTransferFrom(solver, ...)`, so making it public lets any caller
+        // pull from any wallet that has approved AtomicSolver.
         authority.setRoleCapability(
             QUEUE_ROLE,
             atomicSolver,

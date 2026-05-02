@@ -71,7 +71,7 @@ contract DeployNucleusCrossChain is Script {
 
         // Set addresses
         owner = vm.addr(deployerPrivateKey);
-        managerWallet = vm.envAddress("MANAGER_ADDRESS");
+        managerWallet = vm.envAddress("MANAGER_WALLET_ADDRESS");
         solver = vm.envAddress("SOLVER_ADDRESS");
         exchangeRateBot = vm.envAddress("EXCHANGE_RATE_BOT_ADDRESS");
 

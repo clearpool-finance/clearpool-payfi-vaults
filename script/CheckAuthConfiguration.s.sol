@@ -13,11 +13,12 @@ import { ConfigReader } from "./ConfigReader.s.sol";
 import "./../src/helper/Constants.sol";
 
 /// @notice Post-deploy invariant check script. Run after `deployAll.s.sol` on every chain.
-/// @dev Added in response to the [date] incident: a `setPublicCapability(atomicSolver,
-///      finishSolve.selector, true)` misconfig let anyone drain approvers of AtomicSolverV5.
-///      A single `require(!isCapabilityPublic(solver, finishSolve.selector))` here would have
-///      caught it at deploy time. Extend the assertion list whenever new roles/capabilities
-///      are added to ConfigureAtomicRoles.s.sol or 06_DeployRolesAuthority.s.sol.
+/// @dev Asserts the role-capability matrix wired by `06_DeployRolesAuthority.s.sol` and
+///      `ConfigureAtomicRoles.s.sol` matches the intended configuration. The headline
+///      assertion is `!isCapabilityPublic(solver, finishSolve.selector)` — `finishSolve`
+///      decodes a caller-supplied solver address and pulls funds via `safeTransferFrom`,
+///      so it must never be publicly callable. Extend the assertion list whenever new
+///      roles or capabilities are added to either deploy script.
 ///
 /// Invocation (forge script, read-only — no broadcast needed):
 ///   forge script script/CheckAuthConfiguration.s.sol \
@@ -58,10 +59,9 @@ contract CheckAuthConfiguration is BaseScript {
 
         // === NEGATIVE ASSERTIONS — selectors that must NEVER be publicly callable ===
         //
-        // The [date] incident was a single `setPublicCapability(solver, finishSolve, true)`
-        // misconfig. The same class — public-cap on any role-mutating, fund-moving, or rate-
-        // affecting selector — would have similar blast radius. Maintain this list as a
-        // mirror of every selector that appears in `setRoleCapability(...)` calls across
+        // A single `setPublicCapability` misconfig on any role-mutating, fund-moving, or
+        // rate-affecting selector would expose the system. Maintain this list as a mirror
+        // of every selector that appears in `setRoleCapability(...)` calls across
         // 06_DeployRolesAuthority.s.sol and ConfigureAtomicRoles.s.sol.
 
         // Solver entry points

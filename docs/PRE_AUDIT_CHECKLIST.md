@@ -57,7 +57,7 @@ Manual end-to-end on the live deployment:
 
 Set alerts on `RolesAuthority` and `AtomicSolverV5`:
 
-- `RolesAuthority.UserRoleUpdated(user, role, enabled)` — any new user gaining `QUEUE_ROLE` or any existing holder being granted an unexpected role must trigger immediate review. The [date] incident's pre-condition was a misconfigured capability that sat unwatched for 73 days.
+- `RolesAuthority.UserRoleUpdated(user, role, enabled)` — any new user gaining `QUEUE_ROLE` or any existing holder being granted an unexpected role must trigger immediate review. A misconfigured capability sitting unwatched is the typical precondition for this class of bug.
 - `RolesAuthority.PublicCapabilityUpdated(target, sig, enabled=true)` — should never fire for any of the selectors enumerated in the post-deploy gates above. If it does, halt operations and re-run `CheckAuthConfiguration`.
 - `AtomicSolverV5.QueueApprovalSet(queue, approved)` — any whitelist change to `approvedQueues` should be tied to a documented ops ticket. Unannounced approvals = follow up immediately.
 - `AtomicSolverV5.Rescued(token, to, amount)` — sweep events should match a known operator action; surface them to whoever owns incident response.
