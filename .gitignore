@@ -19,5 +19,3 @@ node_modules/
 
 .vscode
 
-# Local-only security artifacts (not for public repo)
-design notes.md.pdf
