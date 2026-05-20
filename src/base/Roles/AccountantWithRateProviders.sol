@@ -550,6 +550,66 @@ contract AccountantWithRateProviders is Auth, IRateProvider {
     }
 
     /**
+     * @notice Convert quote asset amount to base value in 18 decimals.
+     * @dev Provider reads are intentionally centralized in Accountant so registration
+     *      probes and runtime pricing use the same caller context.
+     */
+    function getValueInBase(ERC20 _quote, uint256 _amount) public view returns (uint256 valueInBase) {
+        if (address(_quote) == address(base)) {
+            valueInBase = _changeDecimals(_amount, decimals, 18);
+        } else {
+            RateProviderData memory data = rateProviderData[_quote];
+            uint8 quoteDecimals = ERC20(_quote).decimals();
+
+            if (data.isPeggedToBase) {
+                valueInBase = _changeDecimals(_amount, quoteDecimals, 18);
+            } else {
+                uint256 quoteRate = data.rateProvider.getRate();
+                valueInBase = _amount.mulDivDown(quoteRate, 10 ** quoteDecimals);
+            }
+        }
+    }
+
+    /**
+     * @notice Convert quote asset amount to base value in 18 decimals.
+     * @dev Revert if paused.
+     */
+    function getValueInBaseSafe(ERC20 _quote, uint256 _amount) external view returns (uint256 valueInBase) {
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
+        valueInBase = getValueInBase(_quote, _amount);
+    }
+
+    /**
+     * @notice Convert base value in 18 decimals to quote asset amount.
+     * @dev Provider reads are intentionally centralized in Accountant so registration
+     *      probes and runtime pricing use the same caller context.
+     */
+    function getAmountInQuote(ERC20 _quote, uint256 _valueInBase) public view returns (uint256 quoteAmount) {
+        if (address(_quote) == address(base)) {
+            quoteAmount = _changeDecimals(_valueInBase, 18, decimals);
+        } else {
+            RateProviderData memory data = rateProviderData[_quote];
+            uint8 quoteDecimals = ERC20(_quote).decimals();
+
+            if (data.isPeggedToBase) {
+                quoteAmount = _changeDecimals(_valueInBase, 18, quoteDecimals);
+            } else {
+                uint256 quoteRate = data.rateProvider.getRate();
+                quoteAmount = _valueInBase.mulDivDown(10 ** quoteDecimals, quoteRate);
+            }
+        }
+    }
+
+    /**
+     * @notice Convert base value in 18 decimals to quote asset amount.
+     * @dev Revert if paused.
+     */
+    function getAmountInQuoteSafe(ERC20 _quote, uint256 _valueInBase) external view returns (uint256 quoteAmount) {
+        if (accountantState._isPaused) revert AccountantWithRateProviders__Paused();
+        quoteAmount = getAmountInQuote(_quote, _valueInBase);
+    }
+
+    /**
      * @notice Get total rate paid by borrower
      * @dev This is the sum of lending rate (for depositors) and management fee rate
      * @return Total borrower rate in basis points

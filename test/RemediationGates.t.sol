@@ -7,6 +7,7 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { MockERC20 } from "@solmate/test/utils/mocks/MockERC20.sol";
 
 import { BoringVault } from "src/base/BoringVault.sol";
+import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { CrossChainTellerBase, BridgeData } from "src/base/Roles/CrossChain/CrossChainTellerBase.sol";
@@ -26,6 +27,29 @@ contract MockRateProvider is IRateProvider {
 
     function getRate() external view returns (uint256) {
         return rate;
+    }
+}
+
+/// @notice Returns a safe rate to Accountant but an inflated rate to direct runtime callers.
+contract CallerSensitiveRateProvider is IRateProvider {
+    address internal immutable accountant;
+    address internal immutable teller;
+    address internal immutable queue;
+    uint256 internal immutable safeRate;
+    uint256 internal immutable inflatedRate;
+
+    constructor(address _accountant, address _teller, address _queue, uint256 _safeRate, uint256 _inflatedRate) {
+        accountant = _accountant;
+        teller = _teller;
+        queue = _queue;
+        safeRate = _safeRate;
+        inflatedRate = _inflatedRate;
+    }
+
+    function getRate() external view returns (uint256) {
+        if (msg.sender == accountant) return safeRate;
+        if (msg.sender == teller || msg.sender == queue) return inflatedRate;
+        return safeRate;
     }
 }
 
@@ -108,6 +132,7 @@ contract RemediationGatesTest is Test {
         authority.setRoleCapability(
             ADMIN_ROLE, address(teller), TellerWithMultiAssetSupport.setDepositCap.selector, true
         );
+        authority.setPublicCapability(address(teller), TellerWithMultiAssetSupport.deposit.selector, true);
 
         authority.setUserRole(admin, ADMIN_ROLE, true);
         authority.setUserRole(address(teller), TELLER_ROLE, true);
@@ -254,6 +279,43 @@ contract RemediationGatesTest is Test {
         (bool isPegged, IRateProvider provider) = accountant.rateProviderData(otherAsset);
         assertFalse(isPegged);
         assertEq(address(provider), address(newProvider));
+    }
+
+    function test_A3_callerSensitiveProviderCannotInflateTellerDeposit() public {
+        teller.addAsset(otherAsset);
+        CallerSensitiveRateProvider provider =
+            new CallerSensitiveRateProvider(address(accountant), address(teller), address(0), 1e18, 2e18);
+        accountant.setRateProviderData(otherAsset, false, address(provider));
+
+        deal(address(otherAsset), user, 1e18);
+        vm.startPrank(user);
+        otherAsset.approve(address(vault), 1e18);
+        uint256 shares = teller.deposit(otherAsset, 1e18, 0);
+        vm.stopPrank();
+
+        assertEq(shares, 1e18, "Teller must price through Accountant context");
+    }
+
+    function test_A3_callerSensitiveProviderCannotInflateAtomicQueueQuote() public {
+        AtomicQueue queue = new AtomicQueue(address(accountant), admin, authority);
+        CallerSensitiveRateProvider provider =
+            new CallerSensitiveRateProvider(address(accountant), address(0), address(queue), 1e18, 2e18);
+        accountant.setRateProviderData(otherAsset, false, address(provider));
+
+        deal(address(otherAsset), user, 1e18);
+        vm.startPrank(user);
+        otherAsset.approve(address(queue), 1e18);
+        queue.updateAtomicRequest(otherAsset, ERC20(address(vault)), uint64(block.timestamp + 1 days), uint96(1e18));
+        vm.stopPrank();
+
+        address[] memory users = new address[](1);
+        users[0] = user;
+        (AtomicQueue.SolveMetaData[] memory metaData, uint256 totalAssetsForWant, uint256 totalAssetsToOffer) =
+            queue.viewSolveMetaData(otherAsset, ERC20(address(vault)), users);
+
+        assertEq(metaData[0].assetsForWant, 1e18, "Queue must price through Accountant context");
+        assertEq(totalAssetsForWant, 1e18, "Queue total must use Accountant-context rate");
+        assertEq(totalAssetsToOffer, 1e18);
     }
 
     // ------------------------------------------------------------------

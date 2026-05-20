@@ -8,7 +8,6 @@ import { ReentrancyGuard } from "@solmate/utils/ReentrancyGuard.sol";
 import { IAtomicSolver } from "./IAtomicSolver.sol";
 import { AccountantWithRateProviders } from "../base/Roles/AccountantWithRateProviders.sol";
 import { Auth, Authority } from "@solmate/auth/Auth.sol";
-import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 
 /**
  * @title AtomicQueue
@@ -364,54 +363,6 @@ contract AtomicQueue is ReentrancyGuard, Auth {
     }
 
     /**
-     * @notice Convert asset amount to 18 decimal value
-     */
-    function _convertAssetToValue18(ERC20 asset, uint256 amount) internal view returns (uint256) {
-        if (address(asset) == address(accountant.base())) {
-            return _changeDecimals(amount, accountant.decimals(), 18);
-        }
-
-        (bool isPegged,) = accountant.rateProviderData(asset);
-        if (isPegged) {
-            return _changeDecimals(amount, asset.decimals(), 18);
-        } else {
-            (, IRateProvider rateProvider) = accountant.rateProviderData(asset);
-            uint256 rate = rateProvider.getRate();
-            return amount.mulDivDown(rate, 10 ** asset.decimals());
-        }
-    }
-
-    /**
-     * @notice Convert 18 decimal value to asset amount
-     */
-    function _convertValue18ToAsset(ERC20 asset, uint256 valueIn18) internal view returns (uint256) {
-        if (address(asset) == address(accountant.base())) {
-            return _changeDecimals(valueIn18, 18, accountant.decimals());
-        }
-
-        (bool isPegged,) = accountant.rateProviderData(asset);
-        if (isPegged) {
-            return _changeDecimals(valueIn18, 18, asset.decimals());
-        } else {
-            (, IRateProvider rateProvider) = accountant.rateProviderData(asset);
-            uint256 rate = rateProvider.getRate();
-            return valueIn18.mulDivDown(10 ** asset.decimals(), rate);
-        }
-    }
-
-    /**
-     * @notice Helper to change decimals
-     */
-    function _changeDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
-        if (fromDecimals == toDecimals) return amount;
-        if (fromDecimals < toDecimals) {
-            return amount * 10 ** (toDecimals - fromDecimals);
-        } else {
-            return amount / 10 ** (fromDecimals - toDecimals);
-        }
-    }
-
-    /**
      * @notice Calculate want amount for a given offer amount
      * @dev Single source of truth for swap calculations used by both _prepareSolve and viewSolveMetaData
      * @param offer the ERC20 offer token
@@ -428,28 +379,23 @@ contract AtomicQueue is ReentrancyGuard, Auth {
         view
         returns (uint256 wantAmount)
     {
-        // getRateSafe (not getRate) so a paused accountant blocks new solves. A-1 made
-        // updateExchangeRate auto-pause on bound/delay violation; without this guard the
-        // queue would keep quoting at the last-known-good rate while the protocol is
-        // signalling that the rate is untrusted.
-        uint256 rate = accountant.getRateSafe(); // Rate is in 18 decimals
+        // Safe Accountant helpers keep paused accountants blocking new solves and
+        // centralize provider reads in the same caller context as registration.
+        uint256 oneShare = 10 ** ERC20(address(accountant.vault())).decimals();
+        uint256 rate = accountant.getRateSafe();
 
         if (address(offer) == address(accountant.vault())) {
-            // Withdrawing: vault shares -> asset
-            uint8 vaultDecimals = ERC20(address(offer)).decimals();
-            uint256 sharesIn18 = _changeDecimals(offerAmount, vaultDecimals, 18);
-            uint256 valueIn18 = sharesIn18.mulDivDown(rate, 1e18);
-            wantAmount = _convertValue18ToAsset(want, valueIn18);
+            // Withdrawing: vault shares -> asset.
+            uint256 valueInBase = offerAmount.mulDivDown(rate, oneShare);
+            wantAmount = accountant.getAmountInQuoteSafe(want, valueInBase);
         } else if (address(want) == address(accountant.vault())) {
-            // Depositing: asset -> vault shares
-            uint8 vaultDecimals = ERC20(address(want)).decimals();
-            uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
-            uint256 sharesIn18 = valueIn18.mulDivDown(1e18, rate);
-            wantAmount = _changeDecimals(sharesIn18, 18, vaultDecimals);
+            // Depositing: asset -> vault shares.
+            uint256 valueInBase = accountant.getValueInBaseSafe(offer, offerAmount);
+            wantAmount = valueInBase.mulDivDown(oneShare, rate);
         } else {
-            // Swap: asset -> asset (through value)
-            uint256 valueIn18 = _convertAssetToValue18(offer, offerAmount);
-            wantAmount = _convertValue18ToAsset(want, valueIn18);
+            // Swap: asset -> asset, priced through base value.
+            uint256 valueInBase = accountant.getValueInBaseSafe(offer, offerAmount);
+            wantAmount = accountant.getAmountInQuoteSafe(want, valueInBase);
         }
     }
 }
