@@ -2,6 +2,7 @@
 pragma solidity 0.8.22;
 
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
+import { Vm } from "@forge-std/Vm.sol";
 
 interface IAuthority {
     function setAuthority(address newAuthority) external;
@@ -11,6 +12,8 @@ interface IAuthority {
 
 library ConfigReader {
     using StdJson for string;
+
+    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     struct Config {
         address protocolAdmin;
@@ -64,9 +67,16 @@ library ConfigReader {
         address atomicSolver;
         uint8 accessControlMode;
         address[] initialWhitelist;
+        // Optional per-vault CreateX salts for the AtomicQueue / AtomicSolver. When a chain
+        // hosts more than one vault, these MUST be unique per vault — the legacy hardcoded
+        // constants in DeployAtomicQueue / DeployAtomicSolverV5 can only deploy one singleton.
+        // Absent in older single-vault configs; the deploy scripts fall back to the legacy
+        // constant when these are bytes32(0).
+        bytes32 atomicQueueSalt;
+        bytes32 atomicSolverSalt;
     }
 
-    function toConfig(string memory _config, string memory _chainConfig) internal pure returns (Config memory config) {
+    function toConfig(string memory _config, string memory _chainConfig) internal view returns (Config memory config) {
         // Reading the 'protocolAdmin'
         config.protocolAdmin = _config.readAddress(".protocolAdmin");
         config.base = _config.readAddress(".base");
@@ -130,6 +140,15 @@ library ConfigReader {
         // Reading from the 'decoder' section
         config.decoderSalt = _config.readBytes32(".decoder.decoderSalt");
         config.decoder = _config.readAddress(".decoder.address");
+
+        // Optional per-vault atomic-queue / atomic-solver salts. Older single-vault configs
+        // omit these; deploy scripts fall back to the legacy constant when bytes32(0).
+        if (vm.keyExistsJson(_config, ".atomicQueue.atomicQueueSalt")) {
+            config.atomicQueueSalt = _config.readBytes32(".atomicQueue.atomicQueueSalt");
+        }
+        if (vm.keyExistsJson(_config, ".atomicSolver.atomicSolverSalt")) {
+            config.atomicSolverSalt = _config.readBytes32(".atomicSolver.atomicSolverSalt");
+        }
 
         // Reading from the 'chainConfig' section
         config.balancerVault = _chainConfig.readAddress(".balancerVault");

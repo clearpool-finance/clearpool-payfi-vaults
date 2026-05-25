@@ -21,7 +21,8 @@ contract DeployAtomicQueue is BaseScript {
                 config.rolesAuthority // authority
             )
         );
-        atomicQueue = AtomicQueue(CREATEX.deployCreate3(SALT, creationCode));
+        bytes32 salt = config.atomicQueueSalt != bytes32(0) ? config.atomicQueueSalt : SALT;
+        atomicQueue = AtomicQueue(CREATEX.deployCreate3(salt, creationCode));
     }
 
     function deploy(ConfigReader.Config memory config) public override broadcast returns (address) {
@@ -33,6 +34,8 @@ contract DeployAtomicQueue is BaseScript {
                 config.rolesAuthority // authority
             )
         );
-        return CREATEX.deployCreate3(SALT, creationCode);
+        // Per-vault salt when set (multi-vault chains); legacy singleton SALT otherwise.
+        bytes32 salt = config.atomicQueueSalt != bytes32(0) ? config.atomicQueueSalt : SALT;
+        return CREATEX.deployCreate3(salt, creationCode);
     }
 }

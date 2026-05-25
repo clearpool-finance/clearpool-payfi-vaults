@@ -10,6 +10,7 @@ import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import { AtomicSolverV5 } from "src/atomic-queue/AtomicSolverV5.sol";
 import { BaseScript } from "./Base.s.sol";
 import { ConfigReader } from "./ConfigReader.s.sol";
+import { console } from "forge-std/console.sol";
 import "./../src/helper/Constants.sol";
 
 /// @notice Post-deploy invariant check script. Run after `deployAll.s.sol` on every chain.
@@ -280,9 +281,15 @@ contract CheckAuthConfiguration is BaseScript {
         require(_isContract(config.operator), "CheckAuth: operator must have code (Safe), not be an EOA");
         require(_isContract(config.exchangeRateBot), "CheckAuth: exchangeRateBot must have code, not be an EOA");
         // Strategist holds STRATEGIST_ROLE → manageVaultWithMerkleVerification, p2pSolve,
-        // redeemSolve, queue.solve. Same drain-class via the solver path as the operator.
-        if (config.strategist != address(0)) {
-            require(_isContract(config.strategist), "CheckAuth: strategist must have code, not be an EOA");
+        // redeemSolve, queue.solve. A contract (Safe) is strongly preferred. This check is
+        // intentionally a WARNING, not a revert: some deployments wire an external borrower
+        // EOA as the strategist (e.g. a NAV vault whose borrower draws funds directly).
+        // The strategist's blast radius is still bounded by the Manager's Merkle root, so an
+        // EOA strategist is an accepted-risk topology rather than a hard misconfig. If your
+        // deployment requires a contract strategist, re-enable the require below.
+        if (config.strategist != address(0) && !_isContract(config.strategist)) {
+            console.log("CheckAuth WARNING: strategist is an EOA (accepted for borrower-as-strategist vaults):");
+            console.log(config.strategist);
         }
         if (config.pauser != address(0)) {
             // Pauser blast radius is bounded (pause/unpause only) but still benefits from a

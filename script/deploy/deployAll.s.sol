@@ -105,7 +105,8 @@ contract DeployAll is BaseScript {
         console.log("Atomic Queue: ", atomicQueue);
 
         // Deploy AtomicSolverV5
-        address atomicSolver = new DeployAtomicSolverV5().deployWithConfig(config.rolesAuthority);
+        address atomicSolver =
+            new DeployAtomicSolverV5().deployWithConfig(config.rolesAuthority, config.atomicSolverSalt);
         config.atomicSolver = atomicSolver;
         console.log("Atomic Solver V5: ", atomicSolver);
 

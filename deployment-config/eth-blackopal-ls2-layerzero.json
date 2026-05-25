@@ -1,0 +1,64 @@
+{
+  "base": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "protocolAdmin": "0xaB05c0DB9D26e96A9dcEDCAFCA23341316F6fe6F",
+  "boringVaultAndBaseDecimals": "6",
+  "boringVault": {
+    "boringVaultSalt": "0x3d70d31b7e8bc91b67c4200000000000000000000000000000000000000a7a01",
+    "boringVaultName": "Blackopal LiquidStone II",
+    "boringVaultSymbol": "naraOPAL_LS2",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "manager": {
+    "managerSalt": "0x7f3afbf561259bb81c889c0000000000000000000000000000000000000a7a01",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "accountant": {
+    "accountantSalt": "0x28068bd9ff343514b5e7aa0000000000000000000000000000000000000a7a01",
+    "payoutAddress": "0xaB05c0DB9D26e96A9dcEDCAFCA23341316F6fe6F",
+    "allowedExchangeRateChangeUpper": "10030",
+    "allowedExchangeRateChangeLower": "9970",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "0",
+    "lendingRate": "0",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "teller": {
+    "tellerSalt": "0xb65916b8d9a65182a3d1db0000000000000000000000000000000000000a7a01",
+    "maxGasForPeer": 100000,
+    "minGasForPeer": 0,
+    "peerEid": 30101,
+    "tellerContractName": "MultiChainLayerZeroTellerWithMultiAssetSupport",
+    "dvnIfNoDefault": {
+      "required": [],
+      "optional": [],
+      "blockConfirmationsRequiredIfNoDefault": 15,
+      "optionalThreshold": 1
+    },
+    "assets": [
+      "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+    ],
+    "depositCap": 10000000,
+    "accessControlMode": "2",
+    "initialWhitelist": [],
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "rolesAuthoritySalt": "0x74272a13c7aa67ca7644e80000000000000000000000000000000000000a7a01",
+    "strategist": "0xe33Bda5ef29bDB93Ca9D841820f2042a22463220",
+    "additionalStrategists": [],
+    "exchangeRateBot": "0xaB05c0DB9D26e96A9dcEDCAFCA23341316F6fe6F",
+    "pauser": "0xaB05c0DB9D26e96A9dcEDCAFCA23341316F6fe6F",
+    "operator": "0xaB05c0DB9D26e96A9dcEDCAFCA23341316F6fe6F",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "decoder": {
+    "decoderSalt": "0x5413e8a5a0f8a331f890d30000000000000000000000000000000000000a7a01",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "atomicQueue": {
+    "atomicQueueSalt": "0x9c1c550ea8713f503a897a0000000000000000000000000000000000000a7a01"
+  },
+  "atomicSolver": {
+    "atomicSolverSalt": "0x5d07b04160b6a6bb1b7c220000000000000000000000000000000000000a7a01"
+  }
+}
