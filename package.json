@@ -34,7 +34,6 @@
     "solidity-bytes-utils": "^0.8.0"
   },
   "overrides": {
-    "ajv": "8.18.0",
     "axios": "0.32.0",
     "bn.js": "5.2.3",
     "brace-expansion": "2.0.3",
