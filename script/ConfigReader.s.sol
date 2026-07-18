@@ -58,6 +58,9 @@ library ConfigReader {
         address[] priceFeeds;
         address atomicQueue;
         address atomicSolver;
+        uint256 depositCap; // human units (e.g. 10_000_000 for 10M); scaled by base decimals at setup
+        uint8 accessControlMode; // 0=DISABLED, 1=KEYRING_KYC, 2=MANUAL_WHITELIST
+        address[] initialWhitelist; // addresses to seed into the manual whitelist at deploy time
     }
 
     function toConfig(string memory _config, string memory _chainConfig) internal pure returns (Config memory config) {
@@ -92,6 +95,9 @@ library ConfigReader {
         config.minGasForPeer = uint64(_config.readUint(".teller.minGasForPeer"));
         config.tellerContractName = _config.readString(".teller.tellerContractName");
         config.assets = _config.readAddressArray(".teller.assets");
+        config.depositCap = _config.readUint(".teller.depositCap");
+        config.accessControlMode = uint8(_config.readUint(".teller.accessControlMode"));
+        config.initialWhitelist = _config.readAddressArray(".teller.initialWhitelist");
 
         // layerzero
         if (compareStrings(config.tellerContractName, "MultiChainLayerZeroTellerWithMultiAssetSupport")) {
