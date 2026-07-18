@@ -16,7 +16,9 @@ contract DeployAccountantWithRateProviders is BaseScript {
 
     function deploy(ConfigReader.Config memory config) public override broadcast returns (address) {
         // Require Config Values
-        uint256 startingExchangeRate = 10 ** 18;
+        // NAV-based vault: start at NAV 1.1154 (accountant rate uses the 18-dec convention; 1e18 == par).
+        // Matches the live Black Opal accountant convention (getRate()==1.1e18 for NAV 1.10, decimals()==6).
+        uint256 startingExchangeRate = 1_115_400_000_000_000_000;
         {
             require(config.boringVault.code.length != 0, "boringVault must have code");
             require(config.base.code.length != 0, "base must have code");
