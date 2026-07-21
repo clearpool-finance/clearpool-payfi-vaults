@@ -16,9 +16,10 @@ contract DeployAccountantWithRateProviders is BaseScript {
 
     function deploy(ConfigReader.Config memory config) public override broadcast returns (address) {
         // Require Config Values
-        // NAV-based vault: start at NAV 1.1154 (accountant rate uses the 18-dec convention; 1e18 == par).
-        // Matches the live Black Opal accountant convention (getRate()==1.1e18 for NAV 1.10, decimals()==6).
-        uint256 startingExchangeRate = 1_115_400_000_000_000_000;
+        // Fresh pool → start at NAV 1.0. Rate is DERIVED from decimals (10**decimals == par), matching the
+        // other live Clearpool vaults' convention (Black Opal was the exception: it hardcoded an accrued NAV).
+        // For an 18-dec base (e.g. USDX) this is 1e18; getRateInQuote(base) == 10**decimals at launch (1:1).
+        uint256 startingExchangeRate = 10 ** uint256(config.boringVaultAndBaseDecimals);
         {
             require(config.boringVault.code.length != 0, "boringVault must have code");
             require(config.base.code.length != 0, "base must have code");
@@ -32,10 +33,10 @@ contract DeployAccountantWithRateProviders is BaseScript {
             require(config.allowedExchangeRateChangeLower >= 0.997e4, "allowedExchangeRateChangeLower lower bound");
             require(config.minimumUpdateDelayInSeconds >= 3600, "minimumUpdateDelayInSeconds");
             require(config.managementFee < 1e4, "managementFee");
-            // require(
-            //     startingExchangeRate == 10 ** config.boringVaultAndBaseDecimals,
-            //     "starting exchange rate must be equal to the boringVault and base decimals"
-            // );
+            require(
+                startingExchangeRate == 10 ** uint256(config.boringVaultAndBaseDecimals),
+                "starting exchange rate must equal 10**decimals (NAV 1.0)"
+            );
         }
         // Create Contract
         bytes memory creationCode = type(AccountantWithRateProviders).creationCode;

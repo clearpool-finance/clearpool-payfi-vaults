@@ -10,7 +10,7 @@ using StdJson for string;
 
 // Per-vault unique salt (Black Opal clone). The audited commit used a single global constant, which would
 // collide with any prior deployment via the same CreateX. Salt only affects the CREATE3 address, not bytecode.
-bytes32 constant SALT = 0xb0a1000000000000000000000000000000000000000000000000000000000007;
+bytes32 constant SALT = 0x7c00000000000000000000000000000000000000000000000000000000000007;
 
 contract DeployAtomicQueue is BaseScript {
     function run() public broadcast returns (AtomicQueue atomicQueue) {
