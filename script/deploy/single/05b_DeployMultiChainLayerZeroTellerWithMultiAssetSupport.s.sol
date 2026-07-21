@@ -122,9 +122,14 @@ contract DeployMultiChainLayerZeroTellerWithMultiAssetSupport is BaseScript {
         // if no dead address in the ulnConfig, prompt for use of default onchain config, otherwise just use what's in
         // config file
         if (!isDead) {
-            string memory a = vm.prompt(
-                "There is a default onchain configuration for this chain/peerEid combination. Would you like to use it? (y/n)"
-            );
+            // Non-interactive override: set LZ_USE_DEFAULT_CONFIG=true to use the default on-chain ULN config
+            // without prompting (equivalent to answering "y"). Default behaviour stays interactive.
+            bool autoDefault = vm.envOr("LZ_USE_DEFAULT_CONFIG", false);
+            string memory a = autoDefault
+                ? "y"
+                : vm.prompt(
+                    "There is a default onchain configuration for this chain/peerEid combination. Would you like to use it? (y/n)"
+                );
             if (compareStrings(a, "y")) {
                 console2.log("using default onchain config");
             } else {

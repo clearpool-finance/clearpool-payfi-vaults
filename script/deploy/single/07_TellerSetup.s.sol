@@ -24,6 +24,17 @@ contract TellerSetup is BaseScript {
     function deploy(ConfigReader.Config memory config) public virtual override broadcast returns (address) {
         TellerWithMultiAssetSupport teller = TellerWithMultiAssetSupport(config.teller);
 
+        // BACK-PORT (present in main, absent at this audited commit): set access-control mode + seed the manual
+        // whitelist from config, so the deploy itself produces the KYC posture (no separate UI/cast step needed).
+        // 0=DISABLED, 1=KEYRING_KYC, 2=MANUAL_WHITELIST.
+        TellerWithMultiAssetSupport.AccessControlMode mode =
+            TellerWithMultiAssetSupport.AccessControlMode(config.accessControlMode);
+        teller.setAccessControlMode(mode);
+        if (mode == TellerWithMultiAssetSupport.AccessControlMode.MANUAL_WHITELIST && config.initialWhitelist.length > 0)
+        {
+            teller.updateManualWhitelist(config.initialWhitelist, true);
+        }
+
         // add the base asset by default for all configurations
         teller.addAsset(ERC20(config.base));
 
@@ -32,12 +43,24 @@ contract TellerSetup is BaseScript {
             // add asset
             teller.addAsset(ERC20(config.assets[i]));
 
-            // set the corresponding rate provider
-            string memory key = string(
+            // set the corresponding rate provider data
+            // BACK-PORT (present in main, absent at this audited commit): read isPeggedToBase from the chain
+            // config so stablecoins like USDT can be pegged 1:1 (isPeggedToBase=true, rateProvider=0x0),
+            // matching the live Black Opal. The stale script hardcoded `false`, which would force a price feed.
+            string memory rpKey = string(
                 abi.encodePacked(".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".rateProvider")
             );
-            address rateProvider = getChainConfigFile().readAddress(key);
-            teller.accountant().setRateProviderData(ERC20(config.assets[i]), false, rateProvider);
+            string memory peggedKey = string(
+                abi.encodePacked(".assetToRateProviderAndPriceFeed.", config.assets[i].toHexString(), ".isPeggedToBase")
+            );
+            bool isPeggedToBase = getChainConfigFile().readBool(peggedKey);
+            address rateProvider = getChainConfigFile().readAddress(rpKey);
+            teller.accountant().setRateProviderData(ERC20(config.assets[i]), isPeggedToBase, rateProvider);
         }
+
+        // BACK-PORT: set the deposit cap from config (human units, scaled by base decimals). The teller has no
+        // "0 = unlimited" path, so an unset cap (0) blocks ALL deposits — this must be set at deploy time.
+        uint256 scaledCap = config.depositCap * (10 ** uint256(config.boringVaultAndBaseDecimals));
+        teller.setDepositCap(scaledCap);
     }
 }
