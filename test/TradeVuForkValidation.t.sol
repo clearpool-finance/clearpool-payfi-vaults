@@ -8,7 +8,7 @@ import { ManagerWithMerkleVerification } from "src/base/Roles/ManagerWithMerkleV
 import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRateProviders.sol";
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
-import { TradeVuVaultDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/TradeVuVaultDecoderAndSanitizer.sol";
+import { TradeVuBorrowDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/TradeVuBorrowDecoderAndSanitizer.sol";
 import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
 
@@ -19,7 +19,7 @@ import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
  *         with `deployment-config/eth-tradevu-clearpool.json`, so the addresses below are the real CREATE3
  *         addresses the mainnet deploy will produce.
  *
- *         Covers the two strategy paths (borrow, fee claim), the access-control posture, and the NAV bounds.
+ *         Covers the borrow path, the owner-direct fee claim, LP exit, access control, and the NAV bounds.
  */
 contract TradeVuForkValidation is Test {
     // --- deployed system (CREATE3, deployer-independent) ---
@@ -41,36 +41,27 @@ contract TradeVuForkValidation is Test {
 
     bytes4 constant TRANSFER_SEL = 0xa9059cbb; // transfer(address,uint256)
     bytes4 constant APPROVE_SEL = 0x095ea7b3; // approve(address,uint256)
-    bytes4 constant CLAIM_FEES_SEL = 0x15a0ea6a; // claimFees(address)
+    bytes4 constant CLAIM_FEES_SEL = 0x15a0ea6a; // claimFees(address) — called BY the vault, owner-direct
 
-    TradeVuVaultDecoderAndSanitizer decoder;
+    TradeVuBorrowDecoderAndSanitizer decoder;
     bytes32 borrowLeaf;
-    bytes32 approveLeaf;
-    bytes32 claimLeaf;
     bytes32 root;
-    bytes32[][] proofs; // populated per-call
 
     address attacker = address(0xBAD);
 
     function setUp() public {
         vm.createSelectFork("http://127.0.0.1:8546");
 
-        decoder = new TradeVuVaultDecoderAndSanitizer(VAULT);
+        decoder = new TradeVuBorrowDecoderAndSanitizer(VAULT);
 
-        // The 3-leaf tree. Leaf = keccak(decoder ‖ target ‖ valueNonZero ‖ selector ‖ packedArgumentAddresses).
+        // Single-leaf tree, exactly like T-Pool and Ola: root == leaf, proof == [].
+        // Leaf = keccak(decoder ‖ target ‖ valueNonZero ‖ selector ‖ packedArgumentAddresses).
         borrowLeaf = keccak256(abi.encodePacked(address(decoder), USDC, false, TRANSFER_SEL, abi.encodePacked(TRADEVU)));
-        approveLeaf =
-            keccak256(abi.encodePacked(address(decoder), USDC, false, APPROVE_SEL, abi.encodePacked(ACCOUNTANT)));
-        claimLeaf =
-            keccak256(abi.encodePacked(address(decoder), ACCOUNTANT, false, CLAIM_FEES_SEL, abi.encodePacked(USDC)));
+        root = borrowLeaf;
 
-        root = _root3(borrowLeaf, approveLeaf, claimLeaf);
-
-        // Same root for both strategists (borrower + Clearpool Safe), as specified.
-        vm.startPrank(DEV);
+        // Only the borrower gets a manage root. The Safe needs none — it claims fees as vault owner.
+        vm.prank(DEV);
         ManagerWithMerkleVerification(MANAGER).setManageRoot(TRADEVU, root);
-        ManagerWithMerkleVerification(MANAGER).setManageRoot(SAFE, root);
-        vm.stopPrank();
     }
 
     // ---------------------------------------------------------------- deposits
@@ -148,25 +139,6 @@ contract TradeVuForkValidation is Test {
 
     // ---------------------------------------------------------------- fee claim (the new path)
 
-    function test_safeCanClaimManagementFeesToPayoutAddress() public {
-        _seedVault(1_000_000e6);
-
-        // accrue a year of the 0.5% management fee
-        vm.warp(block.timestamp + 365 days);
-        uint256 owed = AccountantWithRateProviders(ACCOUNTANT).previewFeesOwed();
-        assertApproxEqRel(owed, 5000e6, 0.01e18, "0.5% of 1M for one year ~= 5k USDC");
-
-        uint256 payoutBefore = ERC20(USDC).balanceOf(SAFE);
-
-        // leaf 2: vault approves the accountant; leaf 3: vault calls claimFees(USDC)
-        _manage(SAFE, approveLeaf, USDC, abi.encodeWithSelector(APPROVE_SEL, ACCOUNTANT, type(uint256).max));
-        _manage(SAFE, claimLeaf, ACCOUNTANT, abi.encodeWithSelector(CLAIM_FEES_SEL, USDC));
-
-        uint256 received = ERC20(USDC).balanceOf(SAFE) - payoutBefore;
-        assertApproxEqRel(received, 5000e6, 0.01e18, "fees landed at the payout address");
-        assertEq(AccountantWithRateProviders(ACCOUNTANT).previewFeesOwed(), 0, "fees owed zeroed after claim");
-    }
-
     /**
      * @notice The PRODUCTION fee-claim path, as used on the live Ola vaults.
      *
@@ -217,26 +189,15 @@ contract TradeVuForkValidation is Test {
         assertFalse(TellerWithMultiAssetSupport(TELLER).manualWhitelist(TRADEVU), "borrower is not an LP");
     }
 
-    function test_feeClaimCannotBeRedirected() public {
-        _seedVault(1_000_000e6);
-        vm.warp(block.timestamp + 365 days);
-
-        // approving anyone other than the accountant is not in the tree
-        vm.expectRevert();
-        _manage(SAFE, approveLeaf, USDC, abi.encodeWithSelector(APPROVE_SEL, attacker, type(uint256).max));
-
-        // and the vault cannot be made to transfer USDC to a non-TradeVu address
-        vm.expectRevert();
-        _manage(SAFE, borrowLeaf, USDC, abi.encodeWithSelector(TRANSFER_SEL, attacker, 1e6));
-    }
-
     // ---------------------------------------------------------------- NAV bounds
 
     function test_navUpdateWithinUpperBoundApplies() public {
         _seedVault(1_000_000e6);
         vm.warp(block.timestamp + 3601); // clear minimumUpdateDelay
 
-        uint96 newRate = 1.0009e18; // +0.09%, inside the +0.10% bound
+        // A full week of 15%-APR accrual = +0.288%, which must fit inside the +0.30% bound.
+        // This is the real operating case: weekly NAV updates. Margin to the bound is only ~4%.
+        uint96 newRate = 1.00288e18;
         vm.prank(SAFE);
         AccountantWithRateProviders(ACCOUNTANT).updateExchangeRate(newRate);
 
@@ -363,10 +324,10 @@ contract TradeVuForkValidation is Test {
         vm.stopPrank();
     }
 
-    /// @dev Executes a single leaf through the Manager, supplying that leaf's proof against the 3-leaf tree.
-    function _manage(address caller, bytes32 leaf, address target, bytes memory data) internal {
+    /// @dev Executes the single leaf through the Manager. Single-leaf tree -> empty proof.
+    function _manage(address caller, bytes32, address target, bytes memory data) internal {
         bytes32[][] memory p = new bytes32[][](1);
-        p[0] = _proofFor(leaf);
+        p[0] = new bytes32[](0);
         address[] memory decoders = new address[](1);
         decoders[0] = address(decoder);
         address[] memory targets = new address[](1);
@@ -379,26 +340,4 @@ contract TradeVuForkValidation is Test {
         ManagerWithMerkleVerification(MANAGER).manageVaultWithMerkleVerification(p, decoders, targets, datas, values);
     }
 
-    /// @dev 3-leaf tree, padded to 4 by duplicating the last leaf. Layout: [borrow, approve] [claim, claim].
-    function _root3(bytes32 a, bytes32 b, bytes32 c) internal pure returns (bytes32) {
-        return _hashPair(_hashPair(a, b), _hashPair(c, c));
-    }
-
-    function _proofFor(bytes32 leaf) internal view returns (bytes32[] memory proof) {
-        proof = new bytes32[](2);
-        if (leaf == borrowLeaf) {
-            proof[0] = approveLeaf;
-            proof[1] = _hashPair(claimLeaf, claimLeaf);
-        } else if (leaf == approveLeaf) {
-            proof[0] = borrowLeaf;
-            proof[1] = _hashPair(claimLeaf, claimLeaf);
-        } else {
-            proof[0] = claimLeaf;
-            proof[1] = _hashPair(borrowLeaf, approveLeaf);
-        }
-    }
-
-    function _hashPair(bytes32 x, bytes32 y) internal pure returns (bytes32) {
-        return x < y ? keccak256(abi.encodePacked(x, y)) : keccak256(abi.encodePacked(y, x));
-    }
 }

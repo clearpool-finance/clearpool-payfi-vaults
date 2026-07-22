@@ -144,12 +144,6 @@ contract DeployRolesAuthority is BaseScript {
 
         rolesAuthority.setUserRole(config.strategist, STRATEGIST_ROLE, true);
 
-        // Additional strategists (optional). For TradeVu this is the Clearpool admin Safe: it needs
-        // STRATEGIST_ROLE to run the fee-claim leaves (approve + accountant.claimFees) through the Manager.
-        for (uint256 i; i < config.additionalStrategists.length; ++i) {
-            rolesAuthority.setUserRole(config.additionalStrategists[i], STRATEGIST_ROLE, true);
-        }
-
         rolesAuthority.setUserRole(config.manager, MANAGER_ROLE, true);
 
         rolesAuthority.setUserRole(config.teller, TELLER_ROLE, true);
@@ -169,13 +163,6 @@ contract DeployRolesAuthority is BaseScript {
             rolesAuthority.doesUserHaveRole(config.strategist, STRATEGIST_ROLE),
             "strategist should have STRATEGIST_ROLE"
         );
-
-        for (uint256 i; i < config.additionalStrategists.length; ++i) {
-            require(
-                rolesAuthority.doesUserHaveRole(config.additionalStrategists[i], STRATEGIST_ROLE),
-                "additional strategist should have STRATEGIST_ROLE"
-            );
-        }
 
         require(rolesAuthority.doesUserHaveRole(config.manager, MANAGER_ROLE), "manager should have MANAGER_ROLE");
 

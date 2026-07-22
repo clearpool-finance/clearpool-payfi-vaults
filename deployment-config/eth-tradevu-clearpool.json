@@ -4,7 +4,7 @@
   "boringVaultAndBaseDecimals": "6",
   "boringVault": {
     "boringVaultSalt": "0x7d00000000000000000000000000000000000000000000000000000000000001",
-    "boringVaultName": "TradeVu",
+    "boringVaultName": "Tradevu",
     "boringVaultSymbol": "cpTV",
     "address": "0x0000000000000000000000000000000000000000"
   },
@@ -15,7 +15,7 @@
   "accountant": {
     "accountantSalt": "0x7d00000000000000000000000000000000000000000000000000000000000002",
     "payoutAddress": "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
-    "allowedExchangeRateChangeUpper": "10010",
+    "allowedExchangeRateChangeUpper": "10030",
     "allowedExchangeRateChangeLower": "10000",
     "minimumUpdateDelayInSeconds": "3600",
     "managementFee": "50",
@@ -47,7 +47,6 @@
   "rolesAuthority": {
     "rolesAuthoritySalt": "0x7d00000000000000000000000000000000000000000000000000000000000005",
     "strategist": "0xEFe513B1539EaBFAD0bC077e12eb991926a62d0b",
-    "additionalStrategists": ["0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF"],
     "exchangeRateBot": "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
     "pauser": "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
     "address": "0x0000000000000000000000000000000000000000"

@@ -2,7 +2,6 @@
 pragma solidity 0.8.22;
 
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
-import { Vm } from "@forge-std/Vm.sol";
 
 interface IAuthority {
     function setAuthority(address newAuthority) external;
@@ -12,8 +11,6 @@ interface IAuthority {
 
 library ConfigReader {
     using StdJson for string;
-
-    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     struct Config {
         address protocolAdmin;
@@ -49,7 +46,6 @@ library ConfigReader {
         address teller;
         string tellerContractName;
         address strategist;
-        address[] additionalStrategists;
         address exchangeRateBot;
         address pauser;
         address rolesAuthority;
@@ -67,7 +63,7 @@ library ConfigReader {
         address[] initialWhitelist; // addresses to seed into the manual whitelist at deploy time
     }
 
-    function toConfig(string memory _config, string memory _chainConfig) internal view returns (Config memory config) {
+    function toConfig(string memory _config, string memory _chainConfig) internal pure returns (Config memory config) {
         // Reading the 'protocolAdmin'
         config.protocolAdmin = _config.readAddress(".protocolAdmin");
         config.base = _config.readAddress(".base");
@@ -122,11 +118,6 @@ library ConfigReader {
         config.rolesAuthority = _config.readAddress(".rolesAuthority.address");
         config.rolesAuthoritySalt = _config.readBytes32(".rolesAuthority.rolesAuthoritySalt");
         config.strategist = _config.readAddress(".rolesAuthority.strategist");
-        // Optional: extra addresses that also receive STRATEGIST_ROLE (e.g. the Clearpool admin Safe, which
-        // needs it to execute the fee-claim leaves). Absent in the earlier configs, hence the keyExists guard.
-        if (vm.keyExistsJson(_config, ".rolesAuthority.additionalStrategists")) {
-            config.additionalStrategists = _config.readAddressArray(".rolesAuthority.additionalStrategists");
-        }
         config.exchangeRateBot = _config.readAddress(".rolesAuthority.exchangeRateBot");
         config.pauser = _config.readAddress(".rolesAuthority.pauser");
 
