@@ -16,7 +16,17 @@ contract DeployAccountantWithRateProviders is BaseScript {
 
     function deploy(ConfigReader.Config memory config) public override broadcast returns (address) {
         // Require Config Values
-        uint256 startingExchangeRate = 10 ** 18;
+        // Fresh pool → start at NAV 1.0 == 1e18.
+        //
+        // The accountant stores `_exchangeRate` in a FIXED 18-decimal convention, independent of the base
+        // asset's decimals: `getRateInQuote()` converts on read via `_changeDecimals(rate, 18, decimals)`.
+        // Confirmed against live vaults — OvalFi (6-dec USDC base) stores 1e18, Black Opal (6-dec USDC)
+        // stores 1.1181e18, T-Pool (18-dec USDX) stores 1e18.
+        //
+        // This previously read `10 ** boringVaultAndBaseDecimals`, which is correct ONLY by coincidence for an
+        // 18-dec base (T-Pool/USDX). For a 6-dec base (USDC) it would have deployed NAV at 1e6 — one
+        // trillionth of par — so it is pinned to 1e18 here for every base-decimals configuration.
+        uint256 startingExchangeRate = 1e18;
         {
             require(config.boringVault.code.length != 0, "boringVault must have code");
             require(config.base.code.length != 0, "base must have code");
@@ -30,10 +40,7 @@ contract DeployAccountantWithRateProviders is BaseScript {
             require(config.allowedExchangeRateChangeLower >= 0.997e4, "allowedExchangeRateChangeLower lower bound");
             require(config.minimumUpdateDelayInSeconds >= 3600, "minimumUpdateDelayInSeconds");
             require(config.managementFee < 1e4, "managementFee");
-            // require(
-            //     startingExchangeRate == 10 ** config.boringVaultAndBaseDecimals,
-            //     "starting exchange rate must be equal to the boringVault and base decimals"
-            // );
+            require(startingExchangeRate == 1e18, "starting exchange rate must equal 1e18 (NAV 1.0)");
         }
         // Create Contract
         bytes memory creationCode = type(AccountantWithRateProviders).creationCode;

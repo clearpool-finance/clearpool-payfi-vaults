@@ -103,8 +103,18 @@ contract DeployRolesAuthority is BaseScript {
 
         rolesAuthority.setRoleCapability(TELLER_ROLE, config.boringVault, BoringVault.exit.selector, true);
 
+        // BACK-PORT (present in main, absent at this audited commit): the Teller calls accountant.checkpoint()
+        // on EVERY deposit/withdraw (requiresAuth). Without this grant, all deposits/withdraws revert UNAUTHORIZED.
+        rolesAuthority.setRoleCapability(
+            TELLER_ROLE, config.accountant, AccountantWithRateProviders.checkpoint.selector, true
+        );
+
         rolesAuthority.setRoleCapability(
             UPDATE_EXCHANGE_RATE_ROLE, config.accountant, AccountantWithRateProviders.updateExchangeRate.selector, true
+        );
+        // NAV operator (Nara) may also force a checkpoint when updating NAV.
+        rolesAuthority.setRoleCapability(
+            UPDATE_EXCHANGE_RATE_ROLE, config.accountant, AccountantWithRateProviders.checkpoint.selector, true
         );
 
         rolesAuthority.setRoleCapability(PAUSER_ROLE, config.teller, TellerWithMultiAssetSupport.pause.selector, true);
@@ -113,6 +123,16 @@ contract DeployRolesAuthority is BaseScript {
         );
         rolesAuthority.setRoleCapability(
             PAUSER_ROLE, config.manager, ManagerWithMerkleVerification.pause.selector, true
+        );
+        // Data-room requirement: Nara must be able to pause AND unpause.
+        rolesAuthority.setRoleCapability(
+            PAUSER_ROLE, config.teller, TellerWithMultiAssetSupport.unpause.selector, true
+        );
+        rolesAuthority.setRoleCapability(
+            PAUSER_ROLE, config.accountant, AccountantWithRateProviders.unpause.selector, true
+        );
+        rolesAuthority.setRoleCapability(
+            PAUSER_ROLE, config.manager, ManagerWithMerkleVerification.unpause.selector, true
         );
 
         // --- Set Public Capabilities ---

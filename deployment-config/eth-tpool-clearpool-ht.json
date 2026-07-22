@@ -1,0 +1,53 @@
+{
+  "base": "0xf8750b54d86BE7aE9e32b4A0C826811198D63313",
+  "protocolAdmin": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
+  "boringVaultAndBaseDecimals": "18",
+  "boringVault": {
+    "boringVaultSalt": "0x7c00000000000000000000000000000000000000000000000000000000000001",
+    "boringVaultName": "T-Pool Vault",
+    "boringVaultSymbol": "tUSDX",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "manager": {
+    "managerSalt": "0x7c00000000000000000000000000000000000000000000000000000000000003",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "accountant": {
+    "accountantSalt": "0x7c00000000000000000000000000000000000000000000000000000000000002",
+    "payoutAddress": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
+    "allowedExchangeRateChangeUpper": "10030",
+    "allowedExchangeRateChangeLower": "9970",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "0",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "teller": {
+    "tellerSalt": "0x7c00000000000000000000000000000000000000000000000000000000000004",
+    "maxGasForPeer": 100000,
+    "minGasForPeer": 0,
+    "peerEid": 30101,
+    "tellerContractName": "MultiChainLayerZeroTellerWithMultiAssetSupport",
+    "assets": [],
+    "depositCap": 50000000,
+    "accessControlMode": 0,
+    "initialWhitelist": [],
+    "dvnIfNoDefault": {
+      "required": [],
+      "optional": [],
+      "blockConfirmationsRequiredIfNoDefault": 15,
+      "optionalThreshold": 1
+    },
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "rolesAuthoritySalt": "0x7c00000000000000000000000000000000000000000000000000000000000005",
+    "strategist": "0x0e16E73Bc695547c6B4eb7FdCC49A63006053e47",
+    "exchangeRateBot": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
+    "pauser": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "decoder": {
+    "decoderSalt": "0x7c00000000000000000000000000000000000000000000000000000000000006",
+    "address": "0x0000000000000000000000000000000000000000"
+  }
+}

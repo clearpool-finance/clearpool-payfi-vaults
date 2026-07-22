@@ -12,7 +12,9 @@ contract DeployAtomicSolverV3 is BaseScript {
 
         bytes memory creationCode = type(AtomicSolverV3).creationCode;
         bytes memory constructorArgs = abi.encode(owner, rolesAuthority);
-        bytes32 salt = 0x9cae910c72debe007de11e000000000000000000000000000000000000000001;
+        // Per-vault unique salt (TradeVu) — avoids CREATE3 collision with the global constant.
+        // Prefix history: 0xb0a1… = Black Opal (live), 0x7c00… = T-Pool (live), 0x7d00… = TradeVu.
+        bytes32 salt = 0x7d00000000000000000000000000000000000000000000000000000000000008;
 
         return CREATEX.deployCreate3(salt, abi.encodePacked(creationCode, constructorArgs));
     }
