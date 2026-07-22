@@ -8,9 +8,10 @@ import { ConfigReader } from "../ConfigReader.s.sol";
 
 using StdJson for string;
 
-// Per-vault unique salt (Black Opal clone). The audited commit used a single global constant, which would
+// Per-vault unique salt (TradeVu). The audited commit used a single global constant, which would
 // collide with any prior deployment via the same CreateX. Salt only affects the CREATE3 address, not bytecode.
-bytes32 constant SALT = 0x7c00000000000000000000000000000000000000000000000000000000000007;
+// Prefix history: 0xb0a1… = Black Opal (live), 0x7c00… = T-Pool (live), 0x7d00… = TradeVu.
+bytes32 constant SALT = 0x7d00000000000000000000000000000000000000000000000000000000000007;
 
 contract DeployAtomicQueue is BaseScript {
     function run() public broadcast returns (AtomicQueue atomicQueue) {

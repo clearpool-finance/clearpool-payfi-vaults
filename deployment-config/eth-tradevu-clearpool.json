@@ -1,0 +1,58 @@
+{
+  "base": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "protocolAdmin": "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504",
+  "boringVaultAndBaseDecimals": "6",
+  "boringVault": {
+    "boringVaultSalt": "0x7d00000000000000000000000000000000000000000000000000000000000001",
+    "boringVaultName": "TradeVu",
+    "boringVaultSymbol": "cpTV",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "manager": {
+    "managerSalt": "0x7d00000000000000000000000000000000000000000000000000000000000003",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "accountant": {
+    "accountantSalt": "0x7d00000000000000000000000000000000000000000000000000000000000002",
+    "payoutAddress": "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
+    "allowedExchangeRateChangeUpper": "10010",
+    "allowedExchangeRateChangeLower": "10000",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "50",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "teller": {
+    "tellerSalt": "0x7d00000000000000000000000000000000000000000000000000000000000004",
+    "maxGasForPeer": 100000,
+    "minGasForPeer": 0,
+    "peerEid": 30101,
+    "tellerContractName": "MultiChainLayerZeroTellerWithMultiAssetSupport",
+    "assets": [],
+    "depositCap": 5000000,
+    "accessControlMode": 2,
+    "initialWhitelist": [
+      "0xf9B0445770341D88a77d384c5bEF582A27534865",
+      "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
+      "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504"
+    ],
+    "dvnIfNoDefault": {
+      "required": [],
+      "optional": [],
+      "blockConfirmationsRequiredIfNoDefault": 15,
+      "optionalThreshold": 1
+    },
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "rolesAuthoritySalt": "0x7d00000000000000000000000000000000000000000000000000000000000005",
+    "strategist": "0xEFe513B1539EaBFAD0bC077e12eb991926a62d0b",
+    "additionalStrategists": ["0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF"],
+    "exchangeRateBot": "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
+    "pauser": "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "decoder": {
+    "decoderSalt": "0x7d00000000000000000000000000000000000000000000000000000000000006",
+    "address": "0x0000000000000000000000000000000000000000"
+  }
+}
