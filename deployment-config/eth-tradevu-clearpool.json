@@ -32,6 +32,7 @@
     "accessControlMode": 2,
     "initialWhitelist": [
       "0xf9B0445770341D88a77d384c5bEF582A27534865",
+      "0x5898e09a4ac5798a93ee08356318299e00a7A837",
       "0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF",
       "0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504"
     ],

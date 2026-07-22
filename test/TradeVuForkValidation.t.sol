@@ -9,6 +9,8 @@ import { AccountantWithRateProviders } from "src/base/Roles/AccountantWithRatePr
 import { TellerWithMultiAssetSupport } from "src/base/Roles/TellerWithMultiAssetSupport.sol";
 import { RolesAuthority } from "@solmate/auth/authorities/RolesAuthority.sol";
 import { TradeVuVaultDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/TradeVuVaultDecoderAndSanitizer.sol";
+import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
+import { AtomicSolverV3 } from "src/atomic-queue/AtomicSolverV3.sol";
 
 /**
  * @notice Fork validation for the Clearpool × TradeVu vault (cpTV, USDC, Ethereum).
@@ -26,12 +28,15 @@ contract TradeVuForkValidation is Test {
     address constant ACCOUNTANT = 0x015745aa47b4891609754e7b1Fe65c8A3CB510eE;
     address constant TELLER = 0xD7EDfd54a24a207D40502da86ccbabEaE344D2Cd;
     address constant ROLES_AUTHORITY = 0xFA7938Fa9D3AE8E420668f70A954E2B7F8FEd833;
+    address constant ATOMIC_QUEUE = 0x7985a270905f13c250B999a90D61E6704b74404F;
+    address constant ATOMIC_SOLVER = 0xbD1F0c761Bca4431FF18c46619B2CE437E28bC95;
 
     // --- principals ---
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant TRADEVU = 0xEFe513B1539EaBFAD0bC077e12eb991926a62d0b; // borrower / strategist
     address constant SAFE = 0xE0308d5681afe01A8Ad1cC0b8c937Db699E204aF; // Clearpool admin Safe
     address constant CICADA = 0xf9B0445770341D88a77d384c5bEF582A27534865; // whitelisted LP
+    address constant CICADA_2 = 0x5898e09a4ac5798a93ee08356318299e00a7A837; // whitelisted LP (2nd Cicada address)
     address constant DEV = 0x03014C3cDaDD8a5A1D8EBa50e35212a53Ba3A504; // deployer (pre-handover owner)
 
     bytes4 constant TRANSFER_SEL = 0xa9059cbb; // transfer(address,uint256)
@@ -162,6 +167,56 @@ contract TradeVuForkValidation is Test {
         assertEq(AccountantWithRateProviders(ACCOUNTANT).previewFeesOwed(), 0, "fees owed zeroed after claim");
     }
 
+    /**
+     * @notice The PRODUCTION fee-claim path, as used on the live Ola vaults.
+     *
+     *         `BoringVault.manage` is `requiresAuth`, and solmate's Auth passes for `msg.sender == owner`,
+     *         so the owner claims fees with two direct `manage` calls — no Manager, no merkle root, no
+     *         decoder. Confirmed against Plume tx 0x981b3871… : the Ola admin Safe called
+     *         `vault.manage(asset, approve(accountant, max), 0)` (selector 0xf6e715d0) directly.
+     *
+     *         Post-handover the owner is the Clearpool Safe; here it is still the deployer.
+     */
+    function test_ownerCanClaimFeesDirectlyWithoutAnyRoot() public {
+        _seedVault(1_000_000e6);
+        vm.warp(block.timestamp + 365 days);
+
+        uint256 payoutBefore = ERC20(USDC).balanceOf(SAFE);
+        address owner = BoringVault(payable(VAULT)).owner();
+
+        vm.startPrank(owner);
+        BoringVault(payable(VAULT)).manage(
+            USDC, abi.encodeWithSelector(APPROVE_SEL, ACCOUNTANT, type(uint256).max), 0
+        );
+        BoringVault(payable(VAULT)).manage(ACCOUNTANT, abi.encodeWithSelector(CLAIM_FEES_SEL, USDC), 0);
+        vm.stopPrank();
+
+        uint256 received = ERC20(USDC).balanceOf(SAFE) - payoutBefore;
+        assertApproxEqRel(received, 5000e6, 0.01e18, "owner-direct claim pays out the same fees");
+    }
+
+    function test_nonOwnerCannotManageDirectly() public {
+        _seedVault(1_000_000e6);
+        vm.prank(attacker);
+        vm.expectRevert();
+        BoringVault(payable(VAULT)).manage(USDC, abi.encodeWithSelector(TRANSFER_SEL, attacker, 1e6), 0);
+
+        // the borrower holds STRATEGIST_ROLE, which does NOT grant direct vault.manage
+        vm.prank(TRADEVU);
+        vm.expectRevert();
+        BoringVault(payable(VAULT)).manage(USDC, abi.encodeWithSelector(TRANSFER_SEL, TRADEVU, 1e6), 0);
+    }
+
+    function test_bothCicadaAddressesAreWhitelisted() public view {
+        assertTrue(
+            TellerWithMultiAssetSupport(TELLER).manualWhitelist(CICADA), "Cicada LP 1 (0xf9B04457) whitelisted"
+        );
+        assertTrue(
+            TellerWithMultiAssetSupport(TELLER).manualWhitelist(CICADA_2), "Cicada LP 2 (0x5898e09a) whitelisted"
+        );
+        assertFalse(TellerWithMultiAssetSupport(TELLER).manualWhitelist(TRADEVU), "borrower is not an LP");
+    }
+
     function test_feeClaimCannotBeRedirected() public {
         _seedVault(1_000_000e6);
         vm.warp(block.timestamp + 365 days);
@@ -221,6 +276,81 @@ contract TradeVuForkValidation is Test {
         vm.prank(TRADEVU);
         vm.expectRevert();
         AccountantWithRateProviders(ACCOUNTANT).pause();
+    }
+
+    // ---------------------------------------------------------------- LP exit (atomic withdrawal)
+
+    /**
+     * @notice The LP exit path: LP files a request on the AtomicQueue, Clearpool solves it.
+     * @dev    RUNBOOK: AtomicSolverV3 has no in-context auto-approve (that is a V5 feature), so the
+     *         operator must (a) approve the solver for USDC and (b) hold transient USDC before calling
+     *         `redeemSolve`. The vault then funds the exit via bulkWithdraw, making the operator ~whole.
+     */
+    function test_lpCanExitViaAtomicQueueSolvedByOperator() public {
+        uint256 deposit = 100_000e6;
+        _seedVault(deposit);
+
+        // LP files the withdrawal request
+        vm.startPrank(CICADA);
+        BoringVault(payable(VAULT)).approve(ATOMIC_QUEUE, deposit);
+        AtomicQueue(ATOMIC_QUEUE).updateAtomicRequest(
+            ERC20(VAULT), ERC20(USDC), uint64(block.timestamp + 7 days), uint96(deposit)
+        );
+        vm.stopPrank();
+
+        // operator (solver owner; the Clearpool Safe post-handover) funds + approves, then solves
+        address operator = AtomicSolverV3(ATOMIC_SOLVER).owner();
+        deal(USDC, operator, deposit);
+        address[] memory users = new address[](1);
+        users[0] = CICADA;
+
+        uint256 lpUsdcBefore = ERC20(USDC).balanceOf(CICADA);
+        uint256 opUsdcBefore = ERC20(USDC).balanceOf(operator);
+
+        vm.startPrank(operator);
+        ERC20(USDC).approve(ATOMIC_SOLVER, type(uint256).max);
+        AtomicSolverV3(ATOMIC_SOLVER).redeemSolve(
+            AtomicQueue(ATOMIC_QUEUE),
+            ERC20(VAULT),
+            ERC20(USDC),
+            users,
+            0,
+            type(uint256).max,
+            TellerWithMultiAssetSupport(TELLER)
+        );
+        vm.stopPrank();
+
+        assertEq(ERC20(USDC).balanceOf(CICADA) - lpUsdcBefore, deposit, "LP redeemed 1:1 at NAV 1.0");
+        assertEq(BoringVault(payable(VAULT)).balanceOf(CICADA), 0, "LP shares burned");
+        assertApproxEqAbs(ERC20(USDC).balanceOf(operator), opUsdcBefore, 1, "operator net ~0 (vault funded the exit)");
+    }
+
+    function test_randomAddressCannotSolve() public {
+        _seedVault(10_000e6);
+        vm.startPrank(CICADA);
+        BoringVault(payable(VAULT)).approve(ATOMIC_QUEUE, 10_000e6);
+        AtomicQueue(ATOMIC_QUEUE).updateAtomicRequest(
+            ERC20(VAULT), ERC20(USDC), uint64(block.timestamp + 7 days), uint96(10_000e6)
+        );
+        vm.stopPrank();
+
+        address[] memory users = new address[](1);
+        users[0] = CICADA;
+
+        deal(USDC, attacker, 10_000e6);
+        vm.startPrank(attacker);
+        ERC20(USDC).approve(ATOMIC_SOLVER, type(uint256).max);
+        vm.expectRevert(); // redeemSolve is role-gated, not public
+        AtomicSolverV3(ATOMIC_SOLVER).redeemSolve(
+            AtomicQueue(ATOMIC_QUEUE),
+            ERC20(VAULT),
+            ERC20(USDC),
+            users,
+            0,
+            type(uint256).max,
+            TellerWithMultiAssetSupport(TELLER)
+        );
+        vm.stopPrank();
     }
 
     // ---------------------------------------------------------------- helpers
