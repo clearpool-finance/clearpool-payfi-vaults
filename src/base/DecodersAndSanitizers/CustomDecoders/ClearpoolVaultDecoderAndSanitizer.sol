@@ -14,98 +14,51 @@ contract ClearpoolVaultDecoderAndSanitizer is AaveV3DecoderAndSanitizer {
     constructor(address _boringVault) BaseDecoderAndSanitizer(_boringVault) { }
 
     // ========================================= COMPOUND V3 (COMET) =========================================
+    //
+    // Security model: ManagerWithMerkleVerification builds each Merkle leaf from the
+    // addresses THIS decoder returns (functionStaticCall -> packedArgumentAddresses).
+    // Every execution-relevant address a function carries MUST be returned here, or it
+    // is left unconstrained and a strategist can substitute it while reusing a valid proof.
+    //
+    // We deliberately expose only the self-directed Comet surface a vault actually needs,
+    // mirroring the audited Seven Seas / Veda Labs CompoundV3DecoderAndSanitizer:
+    //   - supply / withdraw : msg.sender (the vault) is always the account; no recipient
+    //                         parameter exists, so only the asset is bound.
+    //   - claim             : rewards are paid to `src`; both `comet` and `src` are bound.
+    // The delegation variants (supplyTo, withdrawTo, withdrawFrom, transferFrom, claimTo,
+    // supply/withdrawCollateral) are intentionally NOT implemented: a merkle-gated vault
+    // has no legitimate use for routing funds to or from a third party, and exposing them
+    // without binding their recipient/src was the missing-address vulnerability. Any such
+    // call now falls through to BaseDecoderAndSanitizer's fallback and reverts.
 
-    // @desc Supply asset to Compound V3 Comet
+    // @desc Supply base/collateral asset to Compound V3 Comet (credited to the vault)
+    // @tag asset:address:the asset being supplied
     function supply(
-        address, /*asset*/
+        address asset,
         uint256 /*amount*/
     )
         external
         pure
         returns (bytes memory addressesFound)
     {
-        addressesFound = abi.encodePacked();
+        addressesFound = abi.encodePacked(asset);
     }
 
-    // @desc Supply asset to Compound V3 on behalf of another address
-    function supplyTo(
-        address, /*to*/
-        address, /*asset*/
-        uint256 /*amount*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Withdraw asset from Compound V3
-    // Note: Aave has withdraw(address,uint256,address), Compound has withdraw(address,uint256)
-    // This overload handles Compound's signature
+    // @desc Withdraw base/collateral asset from Compound V3 Comet (to the vault)
+    // @tag asset:address:the asset being withdrawn
     function withdraw(
-        address, /*asset*/
+        address asset,
         uint256 /*amount*/
     )
         external
         pure
         returns (bytes memory addressesFound)
     {
-        addressesFound = abi.encodePacked();
+        addressesFound = abi.encodePacked(asset);
     }
 
-    // @desc Withdraw asset from Compound V3 on behalf of another address
-    function withdrawTo(
-        address, /*to*/
-        address, /*asset*/
-        uint256 /*amount*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Withdraw asset from src and transfer to dst
-    function withdrawFrom(
-        address, /*src*/
-        address, /*to*/
-        address, /*asset*/
-        uint256 /*amount*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Supply collateral to Compound V3
-    function supplyCollateral(
-        address, /*asset*/
-        uint256 /*amount*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Withdraw collateral from Compound V3
-    function withdrawCollateral(
-        address, /*asset*/
-        uint256 /*amount*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Transfer base asset within Compound V3
+    // @desc Transfer base asset (Compound V3 base transfer / ERC20 transfer)
+    // @tag to:address:the recipient
     function transfer(
         address to,
         uint256 /*amount*/
@@ -114,48 +67,22 @@ contract ClearpoolVaultDecoderAndSanitizer is AaveV3DecoderAndSanitizer {
         pure
         returns (bytes memory addressesFound)
     {
-        // Return recipient for Merkle leaf matching
         addressesFound = abi.encodePacked(to);
     }
 
-    // @desc Transfer base asset from src to dst (Compound V3)
-    function transferFrom(
-        address, /*src*/
-        address, /*dst*/
-        uint256 /*amount*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Claim rewards from Compound V3 (via CometRewards contract)
+    // @desc Claim rewards from Compound V3 via the CometRewards contract (paid to src)
+    // @tag comet:address:the Comet market rewards are claimed from
+    // @tag src:address:the account whose rewards are claimed (recipient of the payout)
     function claim(
-        address, /*comet*/
-        address, /*src*/
+        address comet,
+        address src,
         bool /*shouldAccrue*/
     )
         external
         pure
         returns (bytes memory addressesFound)
     {
-        addressesFound = abi.encodePacked();
-    }
-
-    // @desc Claim rewards to a specific address
-    function claimTo(
-        address, /*comet*/
-        address, /*src*/
-        address, /*to*/
-        bool /*shouldAccrue*/
-    )
-        external
-        pure
-        returns (bytes memory addressesFound)
-    {
-        addressesFound = abi.encodePacked();
+        addressesFound = abi.encodePacked(comet, src);
     }
 
     // ========================================= ATOMIC QUEUE =========================================

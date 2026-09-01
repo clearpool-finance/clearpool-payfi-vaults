@@ -31,14 +31,15 @@ plasma="${PLASMA_RPC_URL}"
 flare="${FLARE_RPC_URL}"
 
 [etherscan]
-mainnet = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
+# Etherscan API V2 (unified multichain endpoint; V1 retired June 2025).
+mainnet = { key = "${ETHERSCAN_KEY}", chain = 1, url = "https://api.etherscan.io/v2/api" }
 # polygon = { key = "${POLYGONSCAN_KEY}" }
 # bsc = { key = "${BSCSCAN_KEY}" }
 # avalanche = { key = "${SNOWTRACE_KEY}" }
-arbitrum = { key = "${ETHERSCAN_KEY}", url = "https://api.arbiscan.io/api" }
+arbitrum = { key = "${ETHERSCAN_KEY}", chain = 42161, url = "https://api.etherscan.io/v2/api" }
 # optimism = { key = "${OPTIMISMSCAN_KEY}" }
-base = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
-sepolia_main = { key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api" }
+base = { key = "${ETHERSCAN_KEY}", chain = 8453, url = "https://api.etherscan.io/v2/api" }
+sepolia_main = { key = "${ETHERSCAN_KEY}", chain = 11155111, url = "https://api.etherscan.io/v2/api" }
 
 [fmt]
 bracket_spacing = true
