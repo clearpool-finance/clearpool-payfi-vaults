@@ -19,3 +19,6 @@ node_modules/
 
 .vscode
 
+# harness plan G10: pre-push gate evidence (per-commit manifests) and the test-count baseline are local state
+/.evidence/
+/.claude/harness.baseline.json

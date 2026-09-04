@@ -172,3 +172,37 @@ jobs:
   # which lives at lib/ion-protocol/src/IonPool.sol in this repo (upstream library code,
   # not owned here). Re-add a focused storage-layout job per deployed contract once the
   # V5 deployments land — see PRE_AUDIT_CHECKLIST.md.
+
+  # S3 (harness plan, 2026-09-04): 186 Foundry tests existed and no workflow ran them — prettier, codespell,
+  # links, solhint and slither all ran; `forge test` never did. LiveDeploy.t.sol is fork-only (needs the L1/L2
+  # RPC URLs from .env) and is gated locally by `make checkL1/checkL2`, so it is excluded here.
+  forge-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install npm deps (Solidity imports resolve through node_modules/)
+        run: npm ci
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: forge build
+        run: forge build
+
+      - name: forge test (every suite except the fork-only LiveDeploy)
+        run: |
+          n=$(forge test --list --json --no-match-path 'test/LiveDeploy.t.sol' 2>/dev/null | python3 -c 'import json,sys; raw=sys.stdin.read().strip(); d=json.loads(raw) if raw.startswith("{") else {}; print(sum(len(f) for c in d.values() for f in c.values()))')
+          echo "tests selected: $n"; [ "$n" -gt 0 ] || { echo "no tests selected - refusing to report green"; exit 1; }
+          forge test --no-match-path 'test/LiveDeploy.t.sol'

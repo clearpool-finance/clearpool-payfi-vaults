@@ -1,6 +1,6 @@
 {
   "filter_paths": "lib/|node_modules/|test/|script/",
-  "detectors_to_exclude": "naming-convention,pragma,assembly,equality,arbitrary-send-erc20,encode-packed-collision,unused-return,uninitialized-local,calls-loop,reentrancy-benign,reentrancy-events,timestamp,divide-before-multiply,events-maths,too-many-digits,unchecked-lowlevel,unchecked-send,unprotected-upgrade,locked-ether,write-after-write,solc-version,low-level-calls,similar-names,external-function",
+  "detectors_to_exclude": "naming-convention,pragma,assembly,equality,encode-packed-collision,unused-return,uninitialized-local,calls-loop,reentrancy-benign,reentrancy-events,timestamp,divide-before-multiply,events-maths,too-many-digits,unchecked-send,locked-ether,write-after-write,solc-version,low-level-calls,similar-names,external-function,arbitrary-send-erc20",
   "exclude_informational": true,
   "exclude_low": true,
   "solc_remaps": [
@@ -17,4 +17,3 @@
     "@eth-optimism/=node_modules/@eth-optimism/"
   ]
 }
-  

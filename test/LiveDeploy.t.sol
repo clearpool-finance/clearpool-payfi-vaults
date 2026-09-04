@@ -48,7 +48,6 @@ abstract contract ForkTest is Test {
     }
 }
 
-/*
 contract LiveDeploy is ForkTest, DeployAll {
     using Strings for address;
     using StdJson for string;
@@ -143,9 +142,8 @@ contract LiveDeploy is ForkTest, DeployAll {
         uint256 expectedAssetsBack = depositAmount * rateChange / 10_000;
 
         // attempt a withdrawal after
-        TellerWithMultiAssetSupport(mainConfig.teller).bulkWithdraw(
-            ERC20(mainConfig.base), expected_shares, expectedAssetsBack, address(this)
-        );
+        TellerWithMultiAssetSupport(mainConfig.teller)
+            .bulkWithdraw(ERC20(mainConfig.base), expected_shares, expectedAssetsBack, address(this));
         assertEq(
             ERC20(mainConfig.base).balanceOf(address(this)),
             expectedAssetsBack,
@@ -170,9 +168,8 @@ contract LiveDeploy is ForkTest, DeployAll {
         uint256 sharesOut = boringVault.balanceOf(address(this));
 
         // attempt a withdrawal after
-        TellerWithMultiAssetSupport(mainConfig.teller).bulkWithdraw(
-            ERC20(mainConfig.base), sharesOut, depositAmount - 2, address(this)
-        );
+        TellerWithMultiAssetSupport(mainConfig.teller)
+            .bulkWithdraw(ERC20(mainConfig.base), sharesOut, depositAmount - 2, address(this));
 
         assertApproxEqAbs(
             ERC20(mainConfig.base).balanceOf(address(this)),
@@ -195,9 +192,8 @@ contract LiveDeploy is ForkTest, DeployAll {
         );
 
         // attempt a withdrawal after
-        TellerWithMultiAssetSupport(mainConfig.teller).bulkWithdraw(
-            ERC20(mainConfig.base), expected_shares, depositAmount, address(this)
-        );
+        TellerWithMultiAssetSupport(mainConfig.teller)
+            .bulkWithdraw(ERC20(mainConfig.base), expected_shares, depositAmount, address(this));
         assertEq(
             ERC20(mainConfig.base).balanceOf(address(this)),
             depositAmount,
@@ -256,9 +252,10 @@ contract LiveDeploy is ForkTest, DeployAll {
             // Delta must be set very high to pass
             assertApproxEqAbs(assetsOut, expectedAssetsBack, DELTA, "assets out not equal to expected assets back");
 
-            TellerWithMultiAssetSupport(mainConfig.teller).bulkWithdraw(
-                ERC20(mainConfig.assets[i]), expectedSharesByAsset[i], expectedAssetsBack * 99 / 100, address(this)
-            );
+            TellerWithMultiAssetSupport(mainConfig.teller)
+                .bulkWithdraw(
+                    ERC20(mainConfig.assets[i]), expectedSharesByAsset[i], expectedAssetsBack * 99 / 100, address(this)
+                );
 
             assertApproxEqAbs(
                 ERC20(mainConfig.assets[i]).balanceOf(address(this)),
@@ -290,9 +287,8 @@ contract LiveDeploy is ForkTest, DeployAll {
 
         // withdrawal the assets for the same amount back
         for (uint256 i; i < assetsCount; ++i) {
-            TellerWithMultiAssetSupport(mainConfig.teller).bulkWithdraw(
-                ERC20(mainConfig.assets[i]), expectedSharesByAsset[i], depositAmount - 1, address(this)
-            );
+            TellerWithMultiAssetSupport(mainConfig.teller)
+                .bulkWithdraw(ERC20(mainConfig.assets[i]), expectedSharesByAsset[i], depositAmount - 1, address(this));
             assertApproxEqAbs(
                 ERC20(mainConfig.assets[i]).balanceOf(address(this)),
                 depositAmount,
@@ -429,4 +425,3 @@ contract LiveDeploy is ForkTest, DeployAll {
         vm.warp(time);
     }
 }
-*/

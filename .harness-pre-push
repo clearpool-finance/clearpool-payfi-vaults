@@ -1,0 +1,88 @@
+#!/bin/sh
+# harness-pre-push — the hard gate. Arrays in the config are exec'd; strings are run with `sh -c` explicitly.
+set -u
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+COMMON="$(git rev-parse --git-common-dir)"; case "$COMMON" in /*) ;; *) COMMON="$ROOT/$COMMON";; esac
+CFG="$ROOT/.claude/harness.config.json"; [ -f "$CFG" ] || { echo "harness: no $CFG — refusing to guess"; exit 1; }
+[ "${HARNESS_GATE_RUNNING:-}" = 1 ] && { echo "harness: recursive invocation"; exit 1; }; export HARNESS_GATE_RUNNING=1
+export PYTHONDONTWRITEBYTECODE=1 HOOK_AUDIT_DISABLE=1
+for v in $(git rev-parse --local-env-vars); do unset "$v"; done
+python3 "$ROOT/.claude/harness-config-validate.py" "$CFG" || { echo "harness: config invalid"; exit 1; }
+
+# 1. refs: pre-commit hands hooks devnull stdin but exports PRE_COMMIT_FROM_REF/TO_REF; a direct install gets stdin. Neither → all files (never a silent skip).
+BASE=""; TIP="$(git rev-parse HEAD)"; MODE=""
+if [ -n "${PRE_COMMIT_TO_REF:-}" ]; then TIP="$PRE_COMMIT_TO_REF"; BASE="${PRE_COMMIT_FROM_REF:-}"; MODE="pre-commit"
+elif [ ! -t 0 ]; then
+  while read -r lref lsha rref rsha; do
+    [ "$lsha" = "0000000000000000000000000000000000000000" ] && continue
+    TIP="$lsha"; MODE="stdin"
+    if [ "$rsha" = "0000000000000000000000000000000000000000" ]; then BASE=""; else BASE="$rsha"; fi
+  done
+fi
+if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+  BASE="$(git merge-base "$TIP" refs/remotes/origin/HEAD 2>/dev/null || git merge-base "$TIP" origin/main 2>/dev/null || git merge-base "$TIP" origin/master 2>/dev/null || true)"
+  [ -z "$BASE" ] && { echo "harness: no base ref (new branch / ${MODE:-no refs}) — treating every file as changed"; BASE=4b825dc642cb6eb9a060e54bf8d69288fbee4904; }
+fi
+[ "$BASE" = "$TIP" ] && BASE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+echo "harness: refs via ${MODE:-all-files} ($(printf %.8s "$BASE")..$(printf %.8s "$TIP"))" >&2
+CHANGED="$(git diff --name-only "$BASE" "$TIP")" || { echo "harness: git diff $BASE..$TIP failed"; exit 1; }
+HEAVY="$(python3 - "$CFG" "$CHANGED" <<'PY'
+import json,re,sys; cfg=json.load(open(sys.argv[1])); pats=[re.compile(p) for p in cfg["changed_patterns"]]
+print(1 if any(p.search(f) for f in sys.argv[2].splitlines() for p in pats) else 0)
+PY
+)" || exit 1
+[ "$HEAVY" = 0 ] && echo "harness: no gated paths changed — fast stage only"
+
+# 2. lock: per-canonical-repo, atomic mkdir; reap if pid dead, pid recycled (lstart differs), or older than lock_deadline_sec
+LOCK="$COMMON/harness-gate.lockdir"; DEADLINE="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["gate"]["lock_deadline_sec"])' "$CFG")" || exit 1
+t0=$(date +%s)
+while ! mkdir "$LOCK" 2>/dev/null; do
+  if [ -f "$LOCK/pid" ]; then pid=$(cat "$LOCK/pid"); st=$(cat "$LOCK/lstart" 2>/dev/null); lt=$(cat "$LOCK/t0" 2>/dev/null || echo 0)
+    if ! kill -0 "$pid" 2>/dev/null || [ "$(ps -o lstart= -p "$pid" 2>/dev/null)" != "$st" ] || [ $(( $(date +%s) - lt )) -gt "$DEADLINE" ]; then
+      echo "harness: reaping stale lock (pid $pid)"; rm -rf "$LOCK"; continue; fi
+  fi
+  [ $(( $(date +%s) - t0 )) -gt "$DEADLINE" ] && { echo "harness: could not acquire gate lock in ${DEADLINE}s"; exit 1; }
+  sleep 5
+done
+echo $$ > "$LOCK/pid"; ps -o lstart= -p $$ > "$LOCK/lstart"; date +%s > "$LOCK/t0"
+trap 'rm -rf "$LOCK"' EXIT INT TERM HUP
+
+# 3. stages: exit codes captured by the wrapper; a timeout is recorded as 124; an empty command list is refused
+run_stage() { python3 - "$CFG" "$1" "$TIP" <<'PY'
+import json,subprocess,sys,os,time,hashlib
+cfg=json.load(open(sys.argv[1])); stage=sys.argv[2]; tip=sys.argv[3]; g=cfg["gate"]; cmds=g[stage]
+if not cmds: print(f"harness: stage {stage} has no commands — refusing (vacuous)", file=sys.stderr); sys.exit(1)
+to=g.get("fast_timeout_sec",30) if stage=="fast" else g.get("heavy_timeout_sec",300)
+ev=os.path.join(cfg.get("evidence_dir",".evidence")); os.makedirs(ev,exist_ok=True); rows=[]
+for c in cmds:
+    argv=c if isinstance(c,list) else ["/bin/sh","-c",c]; t=time.time()
+    try: p=subprocess.run(argv,capture_output=True,text=True,timeout=to); rc,out,err=p.returncode,p.stdout,p.stderr
+    except subprocess.TimeoutExpired as e: rc,out,err=124,(e.stdout or b"").decode(errors="replace") if isinstance(e.stdout,bytes) else (e.stdout or ""),f"TIMEOUT after {to}s"
+    rows.append({"cmd":c if isinstance(c,str) else " ".join(c),"exit":rc,"secs":round(time.time()-t,1),"stdout_sha":hashlib.sha256(out.encode()).hexdigest()[:16]})
+    print(out[-2000:],err[-2000:],sep="\n",file=sys.stderr)
+    if rc!=0: break
+tree=hashlib.sha256((subprocess.run(["git","status","--porcelain","--untracked-files=all"],capture_output=True,text=True).stdout+subprocess.run(["git","diff"],capture_output=True,text=True).stdout).encode()).hexdigest()[:16]
+json.dump({"head":tip,"stage":stage,"tree_state":tree,"ts":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"claude_version":os.environ.get("HARNESS_CLAUDE_VERSION",""),"results":rows},open(os.path.join(ev,f"gate-{stage}-{tip[:8]}.json"),"w"),indent=1)
+sys.exit(0 if len(rows)==len(cmds) and all(r["exit"]==0 for r in rows) else 1)
+PY
+}
+run_stage fast  || { echo "harness: FAST stage failed"; exit 1; }
+[ "$HEAVY" = 1 ] && { run_stage heavy || { echo "harness: HEAVY stage failed"; exit 1; }; }
+
+# 4. test-count baseline: argv + a count pattern (no shell pipe); a drop needs a TEST-COUNT-DROP: trailer somewhere in the pushed range
+python3 - "$CFG" "$ROOT/.claude/harness.baseline.json" "$BASE" "$TIP" <<'PY' || exit 1
+import json,subprocess,sys,re,os
+cfg=json.load(open(sys.argv[1])); bl=sys.argv[2]; base,tip=sys.argv[3],sys.argv[4]; c=cfg.get("test_census")
+if not c: sys.exit(0)
+p=subprocess.run(c["cmd"],capture_output=True,text=True)
+if p.returncode not in (0,1): print(f"harness: test census command failed (exit {p.returncode}) — refusing",file=sys.stderr); sys.exit(1)
+now=sum(1 for l in p.stdout.splitlines() if re.search(c["count_pattern"],l))
+prev=json.load(open(bl)).get("count") if os.path.exists(bl) else None
+if prev is None: print(f"harness: test baseline initialised at {now}",file=sys.stderr)
+elif now==0 and prev>0: print(f"harness: test census returned 0 (baseline {prev}) — refusing (vacuous)",file=sys.stderr); sys.exit(1)
+elif now<prev:
+    log=subprocess.run(["git","log","--format=%B",f"{base}..{tip}"],capture_output=True,text=True).stdout
+    if "TEST-COUNT-DROP:" not in log: print(f"harness: test count fell {prev} → {now} with no 'TEST-COUNT-DROP: <why>' trailer in {base[:8]}..{tip[:8]}",file=sys.stderr); sys.exit(1)
+json.dump({"count":now,"head":tip},open(bl,"w"))
+PY
+exit 0

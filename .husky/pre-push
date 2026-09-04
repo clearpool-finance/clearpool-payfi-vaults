@@ -1,1 +1,3 @@
 forge test
+# harness plan P3 (C2): the pre-push gate (refs arrive on stdin from git)
+./.harness-pre-push "$@"

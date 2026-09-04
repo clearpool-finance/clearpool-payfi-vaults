@@ -1,1 +1,4 @@
 forge fmt --check
+# harness G9 (2026-09-05): secret scan on the staged diff
+command -v gitleaks >/dev/null || { echo "gitleaks missing — install it (brew install gitleaks); refusing the commit"; exit 1; }
+gitleaks git --pre-commit --staged --no-banner --redact

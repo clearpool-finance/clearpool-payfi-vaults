@@ -1,0 +1,41 @@
+{
+ "repo": "Code/ozean/clearpool-payfi-vaults",
+ "kind": "foundry",
+ "changed_patterns": [
+  "\\.sol$",
+  "^foundry\\.toml$",
+  "^remappings\\.txt$",
+  "^script/",
+  "^slither\\.config\\.json$"
+ ],
+ "gate": {
+  "fast": [
+   [
+    "forge",
+    "build"
+   ]
+  ],
+  "heavy": [
+   [
+    "forge",
+    "test",
+    "--no-match-path",
+    "test/LiveDeploy.t.sol"
+   ]
+  ],
+  "fast_timeout_sec": 60,
+  "heavy_timeout_sec": 600,
+  "lock_deadline_sec": 1200
+ },
+ "evidence_dir": ".evidence/",
+ "test_census": {
+  "cmd": [
+   "forge",
+   "test",
+   "--list",
+   "--no-match-path",
+   "test/LiveDeploy.t.sol"
+  ],
+  "count_pattern": "^\\s+(test|invariant_)"
+ }
+}
