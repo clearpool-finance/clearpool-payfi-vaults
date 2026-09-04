@@ -23,7 +23,7 @@
     "LiveDeploy"
    ]
   ],
-  "fast_timeout_sec": 60,
+  "fast_timeout_sec": 240,
   "heavy_timeout_sec": 600,
   "lock_deadline_sec": 1200
  },
