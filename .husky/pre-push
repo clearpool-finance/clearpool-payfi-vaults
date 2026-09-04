@@ -1,3 +1,5 @@
-forge test
+# `forge test` moved into the harness gate below (heavy stage: forge test --no-match-contract LiveDeploy): one run, not
+# two, and the LiveDeploy fork rehearsal — un-commented by E3, it needs L1_RPC_URL and a fresh deployment-config — is
+# excluded by name there instead of failing every push here (harness plan C2/E3, 2026-09-05). Run it with `make checkL1`.
 # harness plan P3 (C2): the pre-push gate (refs arrive on stdin from git)
 ./.harness-pre-push "$@"
