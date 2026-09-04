@@ -19,8 +19,8 @@
    [
     "forge",
     "test",
-    "--no-match-path",
-    "test/LiveDeploy.t.sol"
+    "--no-match-contract",
+    "LiveDeploy"
    ]
   ],
   "fast_timeout_sec": 60,
@@ -37,5 +37,6 @@
    "test/LiveDeploy.t.sol"
   ],
   "count_pattern": "^\\s+(test|invariant_)"
- }
+ },
+ "notes": "heavy excludes the LiveDeploy contract by name: it is a fork rehearsal whose constructor reads L1_RPC_URL via vm.envString and whose setUp needs a fresh deployment-config (E3), so it cannot run in a gate that never reads .env. `--no-match-path test/LiveDeploy.t.sol` did NOT exclude it (forge matches that option as a glob against the full path); the gate refused the push that exposed this. A stated exclusion, not a silent skip (harness plan C1/E3, 2026-09-05)."
 }
